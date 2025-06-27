@@ -61,20 +61,18 @@ print(students[1])
 
 
 
-
-
-
-
+import streamlit as st
 import matplotlib.pyplot as plt
 
-# Ayşe K.'nın Math dersi notlarının haftalara göre çizilmesi
 student_df = df[(df["name"] == "Ayşe K.") & (df["subject"] == "Math")]
 
-plt.plot(student_df["week"], student_df["grade"], marker="o")
-plt.title("Ayşe K. - Math Notları (Haftalık)")
-plt.xlabel("Hafta")
-plt.ylabel("Not")
-plt.grid(True)
-plt.show()
+fig, ax = plt.subplots()
+ax.plot(student_df["week"], student_df["grade"], marker="o")
+ax.set_title("Ayşe K. - Math Notları (Haftalık)")
+ax.set_xlabel("Hafta")
+ax.set_ylabel("Not")
+ax.grid(True)
+
+st.pyplot(fig)  # Burada grafiği Streamlit'e gösteriyoruz
 
 
