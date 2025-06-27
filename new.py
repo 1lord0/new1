@@ -123,7 +123,7 @@ if uploaded_file is not None:
                         st.markdown("### ✅ Devam Grafiği")
                         max_week = df["week"].max()
                         attendance_df = pd.DataFrame({"week": range(1, max_week + 1)})
-                        attendance_df["attendance"] = attendance_df["week"].isin(student_df["week"]).astype Roku
+                        attendance_df["attendance"] = attendance_df["week"].isin(student_df["week"]).astype(int)
 
                         fig2, ax2 = plt.subplots()
                         ax2.bar(attendance_df["week"], attendance_df["attendance"], color="green")
@@ -157,7 +157,7 @@ if uploaded_file is not None:
                         img_bytes.seek(0)
 
                         pdf_bytes = create_pdf(selected_name, grades, img_bytes)
-                        plt.close(fig)  # Figürü kapat
+                        plt.close(fig)  # Figürü tekrar kapat
 
                         if pdf_bytes:
                             st.download_button(
