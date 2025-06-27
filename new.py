@@ -99,3 +99,17 @@ def send_email(from_email, password, to_email, subject, body):
     except Exception as e:
         print(f"Mail gönderme hatası: {e}")
         return False
+if submitted:
+    selected_student = st.selectbox("Öğrenci Seç", df["name"].unique())
+    student_row = df[df["name"] == selected_student].iloc[0]
+    to_email = student_row["email"]
+
+    subject = f"{selected_student} - Haftalık Rapor"
+    body = f"Merhaba {selected_student},\n\nHaftalık performans raporun ektedir.\n\nİyi çalışmalar!"
+
+    if st.button("📤 Öğrenciye Mail Gönder"):
+        result = send_email(from_email, password, to_email, subject, body)
+        if result:
+            st.success("Mail gönderildi!")
+        else:
+            st.error("Mail gönderilemedi.")
