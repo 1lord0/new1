@@ -58,21 +58,6 @@ if uploaded_file is not None:
 else:
     st.info("Lütfen bir CSV dosyası yükleyin.")
 
-# 6. Performans Tahmini
-from sklearn.linear_model import LinearRegression
-import numpy as np
-
-st.markdown("### 🔮 Gelecek Hafta Not Tahmini")
-
-import streamlit as st
-import pandas as pd
-import matplotlib.pyplot as plt
-from sklearn.linear_model import LinearRegression
-import numpy as np
-
-st.title("📊 Öğrenci Not ve Katılım Uygulaması")
-
-uploaded_file = st.file_uploader("CSV dosyasını yükleyin", type=["csv"])
 
 
 
