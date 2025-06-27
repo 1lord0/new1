@@ -39,8 +39,8 @@ def create_pdf(student_name, grades_dict, plot_image_bytes):
         tmpfilepath = tmpfile.name
 
     pdf.image(tmpfilepath, x=10, y=pdf.get_y() + 5, w=pdf.w - 20)
+    pdf_bytes = pdf.output(dest='S').encode('latin1') if isinstance(pdf.output(dest='S'), str) else pdf.output(dest='S')
 
-    pdf_bytes = pdf.output(dest='S').encode('latin1')
     return pdf_bytes
 
 
