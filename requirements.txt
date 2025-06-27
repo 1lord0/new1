@@ -3,3 +3,4 @@ scikit-learn
 streamlit
 seaborn
 FPDF
+fpdf2
