@@ -65,36 +65,35 @@ if uploaded_file is not None:
         else:
             st.info("Tahmin için en az 2 hafta verisi gerekli.")
 
-        # PDF rapor oluşturma
-        def create_pdf(student_name, grades_dict, plot_image_bytes):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", "B", 16)
-            pdf.cell(0, 10, f"{student_name} Haftalık Performans Raporu", ln=True, align="C")
-            pdf.set_font("Arial", size=12)
-            pdf.ln(10)
-            for subject, grade in grades_dict.items():
-                pdf.cell(0, 10, f"{subject}: {grade}", ln=True)
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
-                tmpfile.write(plot_image_bytes.getbuffer())
-                tmpfilepath = tmpfile.name
-            pdf.image(tmpfilepath, x=10, y=pdf.get_y() + 5, w=pdf.w - 20)
-            pdf_bytes = pdf.output(dest='S').encode('latin1')
-            return pdf_bytes
+        from fpdf import FPDF
+import tempfile
 
-        grades = dict(zip(student_df["subject"], student_df["grade"]))
-        img_bytes = BytesIO()
-        fig.savefig(img_bytes, format='PNG')
-        plt.close(fig)
-        img_bytes.seek(0)
+def create_pdf(student_name, grades_dict, plot_image_bytes):
+    pdf = FPDF()
+    pdf.add_page()
 
-        pdf_bytes = create_pdf(selected_name, grades, img_bytes)
-        st.download_button(
-            label="📄 PDF Raporu İndir",
-            data=pdf_bytes,
-            file_name=f"{selected_name}_rapor.pdf",
-            mime="application/pdf"
-        )
+    # Unicode fontu ekle (font dosyasının adı doğru olmalı)
+    pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
+    pdf.set_font("DejaVu", size=16)
+    pdf.cell(0, 10, f"{student_name} Haftalık Performans Raporu", ln=True, align="C")
+
+    pdf.ln(10)
+    pdf.set_font("DejaVu", size=12)
+    for subject, grade in grades_dict.items():
+        pdf.cell(0, 10, f"{subject}: {grade}", ln=True)
+
+    # Grafiği geçici dosya olarak kaydet
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
+        tmpfile.write(plot_image_bytes.getbuffer())
+        tmpfilepath = tmpfile.name
+
+    pdf.image(tmpfilepath, x=10, y=pdf.get_y() + 5, w=pdf.w - 20)
+
+    # PDF bytes olarak çıktı al
+    pdf_bytes = pdf.output(dest="S").encode("latin1")
+
+    return pdf_bytes
+
 
         # Mail ayarları formu
         with st.form("email_form"):
