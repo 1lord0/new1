@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-from fpdf import FPDF
+from fpdf2 import FPDF
 from io import BytesIO
 import numpy as np
 import unicodedata
@@ -27,8 +27,13 @@ def create_pdf(student_name, grades_dict, plot_image_bytes):
     try:
         pdf = FPDF()
         pdf.add_page()
-        pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)  # Unicode destekli font
-        pdf.set_font("DejaVu", size=12)
+        # Unicode destekli font (DejaVuSans.ttf dosyasını proje klasörüne ekleyin)
+        try:
+            pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
+            pdf.set_font('DejaVu', size=12)
+        except FileNotFoundError:
+            st.warning("DejaVuSans.ttf font dosyası bulunamadı. Varsayılan font kullanılıyor.")
+            pdf.set_font("Helvetica", size=12)
 
         pdf.cell(0, 10, f"{student_name} Haftalık Performans Raporu", ln=True, align="C")
         pdf.ln(10)
@@ -42,10 +47,9 @@ def create_pdf(student_name, grades_dict, plot_image_bytes):
             tmpfilepath = tmpfile.name
 
         pdf.image(tmpfilepath, x=10, y=pdf.get_y() + 5, w=pdf.w - 20)
-
-        pdf_output = pdf.output(dest='S').encode('latin1')
+        pdf_bytes = pdf.output()  # fpdf2 varsayılan olarak bytes döndürür
         os.unlink(tmpfilepath)  # Geçici dosyayı sil
-        return pdf_output
+        return pdf_bytes
     except Exception as e:
         st.error(f"PDF oluşturma hatası: {e}")
         return None
@@ -82,13 +86,6 @@ def send_email(from_email, password, to_email, subject, body, pdf_bytes, student
 # Streamlit arayüzü
 st.title("📊 Öğrenci Not ve Devam Takip Uygulaması")
 
-# DejaVuSans fontunu indirin ve projenize ekleyin
-try:
-    if not os.path.exists("DejaVuSans.ttf"):
-        st.warning("DejaVuSans.ttf font dosyası eksik. Unicode desteği için lütfen bu fontu ekleyin.")
-except:
-    pass
-
 # CSV dosya yükleme
 uploaded_file = st.file_uploader("CSV dosyasını yükleyin", type=["csv"])
 if uploaded_file is not None:
@@ -101,7 +98,7 @@ if uploaded_file is not None:
             st.error(f"Eksik sütunlar: {', '.join(missing_columns)}. Lütfen doğru formatta bir CSV yükleyin.")
         else:
             student_names = df["name"].unique()
-            if len woody(student_names) == 0:
+            if len(student_names) == 0:
                 st.error("CSV dosyasında öğrenci bulunamadı.")
             else:
                 selected_name = st.selectbox("Öğrenci Seçin", student_names)
@@ -121,11 +118,12 @@ if uploaded_file is not None:
                         ax.set_title(f"{selected_name} - {selected_subject} Notları")
                         ax.grid(True)
                         st.pyplot(fig)
+                        plt.close(fig)  # Figürü kapat
 
                         st.markdown("### ✅ Devam Grafiği")
                         max_week = df["week"].max()
                         attendance_df = pd.DataFrame({"week": range(1, max_week + 1)})
-                        attendance_df["attendance"] = attendance_df["week"].isin(student_df["week"]).astype(int)
+                        attendance_df["attendance"] = attendance_df["week"].isin(student_df["week"]).astype Roku
 
                         fig2, ax2 = plt.subplots()
                         ax2.bar(attendance_df["week"], attendance_df["attendance"], color="green")
@@ -135,6 +133,7 @@ if uploaded_file is not None:
                         ax2.set_yticks([0, 1])
                         ax2.set_ylim(0, 1.2)
                         st.pyplot(fig2)
+                        plt.close(fig2)  # Figürü kapat
 
                         st.markdown("### 🔮 Gelecek Hafta Not Tahmini")
                         from sklearn.linear_model import LinearRegression
@@ -155,10 +154,11 @@ if uploaded_file is not None:
                         grades = dict(zip(student_df["subject"], student_df["grade"]))
                         img_bytes = BytesIO()
                         fig.savefig(img_bytes, format="PNG")
-                        plt.close(fig)
                         img_bytes.seek(0)
 
                         pdf_bytes = create_pdf(selected_name, grades, img_bytes)
+                        plt.close(fig)  # Figürü kapat
+
                         if pdf_bytes:
                             st.download_button(
                                 label="📄 PDF Raporunu İndir",
@@ -169,7 +169,7 @@ if uploaded_file is not None:
 
                             # Mail gönderme formu
                             with st.form("email_form"):
-                                st.markdown("### 📩 E-posta Ayarları (Öğretmen Girişi)")
+                                st.markdown("### 📩 E-posta Ayarları")
                                 st.info("Gmail App Password için: https://myaccount.google.com/security")
                                 from_email = st.text_input("Gönderici E-posta (Gmail)", placeholder="ornek@gmail.com")
                                 password = st.text_input("App Password", type="password", placeholder="Gmail App Password")
