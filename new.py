@@ -63,6 +63,7 @@ from sklearn.linear_model import LinearRegression
 import numpy as np
 
 st.markdown("### 🔮 Gelecek Hafta Not Tahmini")
+student_df = df[(df["name"] == selected_name) & (df["subject"] == selected_subject)]
 
 # Haftalar ve notlar (reshape gerekir)
 X = student_df["week"].values.reshape(-1, 1)
