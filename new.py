@@ -39,7 +39,7 @@ if uploaded_file is not None:
         st.pyplot(fig)
 
         # KATILIM GRAFİĞİ
-       st.markdown("### ✅ Derse Katılım Grafiği")
+       st.markdown("katılım")
 
 # Tüm haftaları al (1'den max haftaya kadar)
 max_week = df["week"].max()
