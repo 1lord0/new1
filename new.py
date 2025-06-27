@@ -87,6 +87,12 @@ with st.form("email_settings"):
     password = st.text_input("Uygulama Şifresi", type="password", placeholder="Gmail uygulama şifresi")
 
     submitted = st.form_submit_button("Kaydet")
+import streamlit as st
+import pandas as pd
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 def send_email(from_email, password, to_email, subject, body):
     try:
         msg = MIMEMultipart()
@@ -102,19 +108,30 @@ def send_email(from_email, password, to_email, subject, body):
         server.quit()
         return True
     except Exception as e:
-        print(f"Mail gönderme hatası: {e}")
+        st.error(f"Mail gönderme hatası: {e}")
         return False
-if submitted:
+
+st.title("Öğrenci Performans Mail Gönderme")
+
+uploaded_file = st.file_uploader("CSV Dosyanızı Yükleyin", type="csv")
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
     selected_student = st.selectbox("Öğrenci Seç", df["name"].unique())
     student_row = df[df["name"] == selected_student].iloc[0]
     to_email = student_row["email"]
+
+    from_email = st.text_input("Gönderen Email")
+    password = st.text_input("Şifre (uygulama şifresi)", type="password")
 
     subject = f"{selected_student} - Haftalık Rapor"
     body = f"Merhaba {selected_student},\n\nHaftalık performans raporun ektedir.\n\nİyi çalışmalar!"
 
     if st.button("📤 Öğrenciye Mail Gönder"):
-        result = send_email(from_email, password, to_email, subject, body)
-        if result:
-            st.success("Mail gönderildi!")
+        if from_email and password:
+            result = send_email(from_email, password, to_email, subject, body)
+            if result:
+                st.success("Mail gönderildi!")
         else:
-            st.error("Mail gönderilemedi.")
+            st.warning("Lütfen email ve şifrenizi girin.")
+else:
+    st.info("Lütfen önce CSV dosyasını yükleyin.")
