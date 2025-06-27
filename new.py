@@ -2,13 +2,40 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 
-st.title("📊 Öğrenci Not ve Katılım Takip Uygulaması")
+st.title("Öğrenci Not Takip")
 
 uploaded_file = st.file_uploader("CSV dosyasını yükleyin", type=["csv"])
-student_df = df[(df["name"] == selected_name) & (df["subject"] == selected_subject)]
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
+    df.columns = df.columns.str.strip()
+
+    student_names = df["name"].unique()
+    selected_name = st.selectbox("Öğrenci Seçin", student_names)
+
+    subjects = df[df["name"] == selected_name]["subject"].unique()
+    selected_subject = st.selectbox("Ders Seçin", subjects)
+
+    student_df = df[(df["name"] == selected_name) & (df["subject"] == selected_subject)]
+
+    if not student_df.empty:
+        st.write(f"Seçilen öğrenci: {selected_name}")
+        st.write(f"Ders: {selected_subject}")
+
+        # Haftalık not grafiği
+        fig, ax = plt.subplots()
+        ax.plot(student_df["week"], student_df["grade"], marker="o")
+        ax.set_xlabel("Hafta")
+        ax.set_ylabel("Not")
+        ax.set_title(f"{selected_name} - {selected_subject} Notları")
+        ax.grid(True)
+        st.pyplot(fig)
+
+    else:
+        st.warning("Seçilen öğrenci ve ders için veri bulunamadı.")
+else:
+    st.info("Lütfen bir CSV dosyası yükleyin.")
+
     df.columns = df.columns.str.strip()
 
     student_names = df["name"].unique()
