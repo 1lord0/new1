@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from fpdf import FPDF
 from io import BytesIO
-
+import numpy as np
 def create_pdf(student_name, grades_dict, plot_image_bytes):
     pdf = FPDF()
     pdf.add_page()
