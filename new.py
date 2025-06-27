@@ -39,24 +39,23 @@ if uploaded_file is not None:
         st.pyplot(fig)
 
         # KATILIM GRAFİĞİ
-       st.markdown("katılım")
+if not student_df.empty:
+    st.markdown("### ✅ Derse Katılım Grafiği")
 
-# Tüm haftaları al (1'den max haftaya kadar)
-max_week = df["week"].max()
-participation_df = pd.DataFrame({
-    "week": range(1, max_week + 1)
-})
+    max_week = df["week"].max()
+    participation_df = pd.DataFrame({
+        "week": range(1, max_week + 1)
+    })
+    participation_df["katılım"] = participation_df["week"].isin(student_df["week"]).astype(int)
 
-# Öğrencinin bu derse katıldığı haftalar: varsa 1, yoksa 0
-participation_df["katılım"] = participation_df["week"].isin(student_df["week"]).astype(int)
+    fig2, ax2 = plt.subplots()
+    ax2.bar(participation_df["week"], participation_df["katılım"], color="green")
+    ax2.set_title(f"{selected_name} - {selected_subject} Derse Katılım")
+    ax2.set_xlabel("Hafta")
+    ax2.set_ylabel("Katılım (1=Var, 0=Yok)")
+    ax2.set_yticks([0, 1])
+    ax2.set_ylim(0, 1.2)
+    st.pyplot(fig2)
 
-fig2, ax2 = plt.subplots()
-ax2.bar(participation_df["week"], participation_df["katılım"], color="green")
-ax2.set_title(f"{selected_name} - {selected_subject} Derse Katılım")
-ax2.set_xlabel("Hafta")
-ax2.set_ylabel("Katılım (1=Var, 0=Yok)")
-ax2.set_yticks([0, 1])
-ax2.set_ylim(0, 1.2)
-st.pyplot(fig2)
 
 
