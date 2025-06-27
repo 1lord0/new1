@@ -14,6 +14,7 @@ if uploaded_file is not None:
     # 2. Veriyi oku ve temizle
     df = pd.read_csv(uploaded_file)
     df.columns = df.columns.str.strip().str.lower()  # sütunları düzelt
+    to_email = student_row["mail"].iloc[0]
     df.columns = df.columns.str.strip()  # sütun isimlerindeki boşlukları temizle
 
     # 3. Öğrenci seçimi
