@@ -64,15 +64,24 @@ print(students[1])
 import streamlit as st
 import matplotlib.pyplot as plt
 
-student_df = df[(df["name"] == "Ayşe K.") & (df["subject"] == "Math")]
+# Örnek: df veri çerçevesinde 'name' sütunu olduğunu varsayıyoruz
 
+# Kullanıcıya isim listesi dropdown olarak sunuluyor
+names = df["name"].unique()
+selected_name = st.selectbox("Öğrenci seçin:", names)
+
+# Kullanıcı seçimine göre filtreleme
+student_df = df[(df["name"] == selected_name) & (df["subject"] == "Math")]
+
+# Grafik çizimi
 fig, ax = plt.subplots()
 ax.plot(student_df["week"], student_df["grade"], marker="o")
-ax.set_title("Ayşe K. - Math Notları (Haftalık)")
+ax.set_title(f"{selected_name} - Math Notları (Haftalık)")
 ax.set_xlabel("Hafta")
 ax.set_ylabel("Not")
 ax.grid(True)
 
-st.pyplot(fig)  # Burada grafiği Streamlit'e gösteriyoruz
+st.pyplot(fig)
+
 
 
