@@ -41,7 +41,8 @@ def create_pdf(student_name, grades_dict, plot_image_bytes):
     pdf.image(tmpfilepath, x=10, y=pdf.get_y() + 5, w=pdf.w - 20)
 
     pdf_bytes = pdf.output(dest="S").encode("latin1")
-    return pdf_bytes
+    return pdf.output(dest="S")  # encode gerekmez
+
 
 
 
