@@ -5,7 +5,7 @@ import pandas as pd
 import seaborn as sns
 
 
-df=pd.read_csv(r"C:\Users\eren\Desktop\student_data.csv")
+df=pd.read_csv(r"student_data.csv")
 
 
 
