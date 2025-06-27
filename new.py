@@ -4,6 +4,18 @@ import matplotlib.pyplot as plt
 from fpdf import FPDF
 from io import BytesIO
 import numpy as np
+import unicodedata
+
+def remove_accents(text):
+    return ''.join(
+        c for c in unicodedata.normalize('NFKD', text)
+        if not unicodedata.combining(c)
+    )
+
+# Kullanım:
+student_name_clean = remove_accents(student_name)
+pdf.cell(0, 10, f"{student_name_clean} Weekly Performance Report", ln=True, align="C")
+
 def create_pdf(student_name, grades_dict, plot_image_bytes):
     pdf = FPDF()
     pdf.add_page()
@@ -137,7 +149,7 @@ if uploaded_file is not None:
             st.success(f"📌 Tahmini {int(next_week[0][0])}. hafta notu: **{prediction:.2f}**")
         else:
             st.info("Tahmin için en az 2 hafta verisi gerekli.")
-
+        
         # PDF oluştur ve indir butonu
         grades = dict(zip(student_df["subject"], student_df["grade"]))
 
