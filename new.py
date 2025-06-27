@@ -163,11 +163,25 @@ def create_pdf(student_name, student_df, plot_image_bytes):
                 if os.path.exists(tmpfilepath):
                     os.unlink(tmpfilepath)  # Always clean up temp file
 
-        # Handle different fpdf versions
+        # Handle different fpdf versions and ensure bytes format
         try:
-            pdf_bytes = pdf.output(dest='S').encode('latin-1')  # fpdf v1
+            # fpdf v1 - returns string
+            pdf_output = pdf.output(dest='S')
+            if isinstance(pdf_output, str):
+                pdf_bytes = pdf_output.encode('latin-1')
+            else:
+                pdf_bytes = pdf_output
         except:
-            pdf_bytes = pdf.output()  # fpdf2
+            # fpdf2 - might return bytes or bytearray
+            pdf_output = pdf.output()
+        
+        # Ensure we always return bytes (not bytearray)
+        if isinstance(pdf_output, bytearray):
+            pdf_bytes = bytes(pdf_output)
+        elif isinstance(pdf_output, str):
+            pdf_bytes = pdf_output.encode('latin-1')
+        else:
+            pdf_bytes = pdf_output
             
         return pdf_bytes
     except Exception as e:
