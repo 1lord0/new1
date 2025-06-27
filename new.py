@@ -135,3 +135,68 @@ if uploaded_file is not None:
             st.warning("Lütfen email ve şifrenizi girin.")
 else:
     st.info("Lütfen önce CSV dosyasını yükleyin.")
+import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
+from fpdf import FPDF
+from io import BytesIO
+
+def create_pdf(student_name, grades_dict, plot_image_bytes):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(0, 10, f"{student_name} Haftalık Performans Raporu", ln=True, align="C")
+
+    pdf.set_font("Arial", size=12)
+    pdf.ln(10)
+    for subject, grade in grades_dict.items():
+        pdf.cell(0, 10, f"{subject}: {grade}", ln=True)
+
+    pdf.image(plot_image_bytes, x=10, y=pdf.get_y() + 5, w=pdf.w - 20)
+
+    pdf_bytes = pdf.output(dest='S').encode('latin1')
+    return pdf_bytes
+
+st.title("Öğrenci Haftalık Raporları")
+
+uploaded_file = st.file_uploader("CSV Dosyanızı Yükleyin", type="csv")
+
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
+    
+    # Öğrenci isimlerini al ve seçme kutusu oluştur
+    students = df["name"].unique()
+    selected_student = st.selectbox("Öğrenci Seç", students)
+
+    # Seçilen öğrencinin notlarını çek
+    student_data = df[df["name"] == selected_student]
+    grades = dict(zip(student_data["subject"], student_data["grade"]))
+
+    # Grafik oluştur
+    fig, ax = plt.subplots()
+    ax.bar(grades.keys(), grades.values(), color='skyblue')
+    ax.set_ylim(0, 100)
+    ax.set_title(f"{selected_student} - Haftalık Notlar")
+    ax.set_ylabel("Not")
+    ax.set_xlabel("Ders")
+
+    # Grafik görüntüsünü bytes olarak kaydet
+    img_bytes = BytesIO()
+    fig.savefig(img_bytes, format='PNG')
+    plt.close(fig)
+    img_bytes.seek(0)
+
+    st.pyplot(fig)
+
+    # PDF oluştur
+    pdf_bytes = create_pdf(selected_student, grades, img_bytes)
+
+    # PDF indir butonu
+    st.download_button(
+        label="PDF Raporu İndir",
+        data=pdf_bytes,
+        file_name=f"{selected_student}_rapor.pdf",
+        mime="application/pdf"
+    )
+else:
+    st.info("Lütfen CSV dosyasını yükleyin.")
