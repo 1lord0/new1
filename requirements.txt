@@ -1,7 +1,12 @@
 pandas
 scikit-learn
-streamlit
+
 seaborn
 FPDF
-fpdf2
+
 numpy
+streamlit>=1.38.0
+pandas
+matplotlib
+fpdf2>=2.7.9
+scikit-learn
