@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-from fpdf2 import FPDF
 from io import BytesIO
 import numpy as np
 import unicodedata
@@ -13,7 +12,23 @@ from email import encoders
 import tempfile
 import os
 import logging
-from sklearn.linear_model import LinearRegression
+
+# Try to import optional dependencies
+try:
+    from fpdf2 import FPDF
+    FPDF_AVAILABLE = True
+except ImportError:
+    try:
+        from fpdf import FPDF
+        FPDF_AVAILABLE = True
+    except ImportError:
+        FPDF_AVAILABLE = False
+
+try:
+    from sklearn.linear_model import LinearRegression
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -73,7 +88,13 @@ def create_attendance_chart(student_df, selected_name, selected_subject, max_wee
 
 def predict_next_grade(student_df):
     """Predict next week's grade using linear regression"""
+    if not SKLEARN_AVAILABLE:
+        st.warning("Tahmin özelliği için scikit-learn kütüphanesi gerekli. 'pip install scikit-learn' ile yükleyebilirsiniz.")
+        return None, None
+        
     try:
+        from sklearn.linear_model import LinearRegression
+        
         X = student_df["week"].values.reshape(-1, 1)
         y = student_df["grade"].values
 
@@ -95,6 +116,10 @@ def predict_next_grade(student_df):
 
 def create_pdf(student_name, student_df, plot_image_bytes):
     """Create PDF report with improved error handling"""
+    if not FPDF_AVAILABLE:
+        st.error("PDF kütüphanesi yüklenmemiş. Lütfen 'pip install fpdf2' veya 'pip install fpdf' komutu ile yükleyin.")
+        return None
+        
     try:
         pdf = FPDF()
         pdf.add_page()
@@ -104,11 +129,12 @@ def create_pdf(student_name, student_df, plot_image_bytes):
             pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
             pdf.set_font('DejaVu', size=16)
         except (FileNotFoundError, RuntimeError):
-            st.warning("DejaVuSans.ttf font dosyası bulunamadı. Varsayılan font kullanılıyor.")
+            # Use basic ASCII characters only
             pdf.set_font("Arial", size=16)
+            student_name = remove_accents(student_name)
 
         # Title
-        pdf.cell(0, 15, f"{student_name} Haftalık Performans Raporu", ln=True, align="C")
+        pdf.cell(0, 15, f"{student_name} Haftalik Performans Raporu", ln=True, align="C")
         pdf.ln(10)
 
         # Grades table
@@ -134,9 +160,15 @@ def create_pdf(student_name, student_df, plot_image_bytes):
                 
                 pdf.image(tmpfilepath, x=10, y=pdf.get_y(), w=pdf.w - 20, h=80)
             finally:
-                os.unlink(tmpfilepath)  # Always clean up temp file
+                if os.path.exists(tmpfilepath):
+                    os.unlink(tmpfilepath)  # Always clean up temp file
 
-        pdf_bytes = pdf.output()
+        # Handle different fpdf versions
+        try:
+            pdf_bytes = pdf.output(dest='S').encode('latin-1')  # fpdf v1
+        except:
+            pdf_bytes = pdf.output()  # fpdf2
+            
         return pdf_bytes
     except Exception as e:
         logger.error(f"PDF creation error: {e}")
@@ -307,33 +339,34 @@ if uploaded_file is not None:
         
         # PDF generation and email
         if img_bytes:
-            pdf_bytes = create_pdf(selected_name, student_df, img_bytes)
-            
-            if pdf_bytes:
-                st.markdown("### 📄 Rapor İşlemleri")
-                col1, col2 = st.columns(2)
+            if FPDF_AVAILABLE:
+                pdf_bytes = create_pdf(selected_name, student_df, img_bytes)
                 
-                with col1:
-                    st.download_button(
-                        label="📄 PDF Raporunu İndir",
-                        data=pdf_bytes,
-                        file_name=f"{remove_accents(selected_name)}_rapor.pdf",
-                        mime="application/pdf"
-                    )
-                
-                with col2:
-                    # Email form
-                    with st.expander("📩 E-posta Gönder"):
-                        st.info("Gmail App Password gerekli: https://myaccount.google.com/security")
-                        
-                        from_email = st.text_input("Gönderici E-posta", placeholder="ornek@gmail.com")
-                        password = st.text_input("App Password", type="password")
-                        
-                        if st.button("E-posta Gönder", type="primary"):
-                            if from_email and password:
-                                to_email = student_df.iloc[0]["email"]
-                                subject = f"{selected_name} - Haftalık Performans Raporu"
-                                body = f"""Merhaba {selected_name},
+                if pdf_bytes:
+                    st.markdown("### 📄 Rapor İşlemleri")
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.download_button(
+                            label="📄 PDF Raporunu İndir",
+                            data=pdf_bytes,
+                            file_name=f"{remove_accents(selected_name)}_rapor.pdf",
+                            mime="application/pdf"
+                        )
+                    
+                    with col2:
+                        # Email form
+                        with st.expander("📩 E-posta Gönder"):
+                            st.info("Gmail App Password gerekli: https://myaccount.google.com/security")
+                            
+                            from_email = st.text_input("Gönderici E-posta", placeholder="ornek@gmail.com")
+                            password = st.text_input("App Password", type="password")
+                            
+                            if st.button("E-posta Gönder", type="primary"):
+                                if from_email and password:
+                                    to_email = student_df.iloc[0]["email"]
+                                    subject = f"{selected_name} - Haftalık Performans Raporu"
+                                    body = f"""Merhaba {selected_name},
 
 Haftalık performans raporunuz ektedir.
 
@@ -344,13 +377,15 @@ Haftalık performans raporunuz ektedir.
 
 İyi çalışmalar dileriz.
 """
-                                
-                                with st.spinner("E-posta gönderiliyor..."):
-                                    result = send_email(from_email, password, to_email, subject, body, pdf_bytes, selected_name)
-                                    if result:
-                                        st.success("✅ E-posta başarıyla gönderildi!")
-                            else:
-                                st.warning("Lütfen e-posta ve App Password girin.")
+                                    
+                                    with st.spinner("E-posta gönderiliyor..."):
+                                        result = send_email(from_email, password, to_email, subject, body, pdf_bytes, selected_name)
+                                        if result:
+                                            st.success("✅ E-posta başarıyla gönderildi!")
+                                else:
+                                    st.warning("Lütfen e-posta ve App Password girin.")
+            else:
+                st.warning("📄 PDF özelliği kullanılamıyor. Lütfen fpdf2 kütüphanesini yükleyin: `pip install fpdf2`")
     
     except Exception as e:
         logger.error(f"Application error: {e}")
