@@ -93,18 +93,4 @@ else:
     st.warning("Lütfen CSV dosyası yükleyin.")
 
 
-# Haftalar ve notlar (reshape gerekir)
-X = student_df["week"].values.reshape(-1, 1)
-y = student_df["grade"].values
-
-if len(X) >= 2:
-    model = LinearRegression()
-    model.fit(X, y)
-
-    next_week = np.array([[X[-1][0] + 1]])
-    prediction = model.predict(next_week)[0]
-
-    st.success(f"📌 Tahmini {int(next_week[0][0])}. hafta notu: **{prediction:.2f}**")
-else:
-    st.info("Tahmin için en az 2 hafta verisi gerekli.")
 
