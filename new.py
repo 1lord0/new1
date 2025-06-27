@@ -76,3 +76,9 @@ if uploaded_file is not None:
 
 else:
     st.info("Lütfen CSV dosyası yükleyin.")
+with st.form("email_settings"):
+    st.markdown("### 📩 Mail Ayarları (Öğretmen Girişi)")
+    from_email = st.text_input("Gönderen E-posta (Gmail)", value="", placeholder="ornek@gmail.com")
+    password = st.text_input("Uygulama Şifresi", type="password", placeholder="Gmail uygulama şifresi")
+
+    submitted = st.form_submit_button("Kaydet")
