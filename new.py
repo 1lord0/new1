@@ -1,0 +1,84 @@
+
+
+import pandas as pd
+
+import seaborn as sns
+
+
+df=pd.read_csv(r"C:\Users\eren\Desktop\student_data.csv")
+
+
+
+
+class person:
+    def __init__(self, name):
+        self.name = name
+        
+        print("person oluşturuldu")
+
+class student(person):
+    def __init__(self,student_no, name,email,classroom, subject,teacher,week,grade,attendance ):
+        super().__init__(name)
+        self.student_no = student_no
+        self.email = email
+        self.classroom=classroom
+        self.week=week
+        self.grade=grade
+        self.attendance=attendance
+        print("student oluşturuldu")
+
+    def __str__(self):
+        return f"{self.name}|no: {self.student_no} | room: {self.classroom} | Grade: {self.grade} | Mail: {self.email}|attendance: {self.attendance}"
+
+
+students = []  # Student nesnelerini tutacak liste
+
+# Her benzersiz öğrenciyi gez
+for name in df["name"].unique():
+    # Bu öğrencinin ilk satırını al
+    sub_df = df[df["name"] == name].iloc[0]
+
+    s = student(
+        sub_df["student_id"],
+        sub_df["name"],
+        sub_df["email"],
+        sub_df["classroom"],
+        sub_df["subject"],
+        sub_df["teacher"],
+        sub_df["week"],
+        sub_df["grade"],
+        sub_df["attendance"]
+    )
+    students.append(s)
+    print(s)
+print(students[1])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+""""
+import matplotlib.pyplot as plt
+
+# Ayşe K.'nın Math dersi notlarının haftalara göre çizilmesi
+student_df = df[(df["name"] == "Ayşe K.") & (df["subject"] == "Math")]
+
+plt.plot(student_df["week"], student_df["grade"], marker="o")
+plt.title("Ayşe K. - Math Notları (Haftalık)")
+plt.xlabel("Hafta")
+plt.ylabel("Not")
+plt.grid(True)
+plt.show()
+
+"""
+
+
