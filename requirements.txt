@@ -4,3 +4,4 @@ streamlit
 seaborn
 FPDF
 fpdf2
+numpy
