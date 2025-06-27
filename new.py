@@ -123,7 +123,7 @@ if uploaded_file is not None:
 
         # Gelecek hafta not tahmini
         st.markdown("### 🔮 Gelecek Hafta Not Tahmini")
-
+        from sklearn.linear_model import LinearRegression
         X = student_df["week"].values.reshape(-1, 1)
         y = student_df["grade"].values
 
