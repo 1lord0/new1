@@ -16,23 +16,42 @@ def remove_accents(text):
 student_name_clean = remove_accents(student_name)
 pdf.cell(0, 10, f"{student_name_clean} Weekly Performance Report", ln=True, align="C")
 
+import unicodedata
+from fpdf import FPDF
+
+def remove_accents(text):
+    if not isinstance(text, str):
+        text = str(text)
+    return ''.join(
+        c for c in unicodedata.normalize('NFKD', text)
+        if not unicodedata.combining(c)
+    )
+
 def create_pdf(student_name, grades_dict, plot_image_bytes):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
-    pdf.cell(0, 10, f"{student_name} Weekly Performance Report", ln=True, align="C")
+
+    # Türkçe karakterlerden arındırılmış öğrenci adı
+    student_name_clean = remove_accents(student_name)
+    pdf.cell(0, 10, f"{student_name_clean} Weekly Performance Report", ln=True, align="C")
     pdf.ln(10)
-    
+
     for subject, grade in grades_dict.items():
-        pdf.cell(0, 10, f"{subject}: {grade}", ln=True)
+        subject_clean = remove_accents(subject)
+        pdf.cell(0, 10, f"{subject_clean}: {grade}", ln=True)
 
-    # Grafik dosyasını geçici olarak kaydet
-    plot_image_bytes.seek(0)
-    with open("temp_chart.png", "wb") as f:
-        f.write(plot_image_bytes.read())
-    pdf.image("temp_chart.png", x=10, y=pdf.get_y() + 5, w=pdf.w - 20)
+    # Grafik resmi için geçici dosya oluşturma (FPDF image için gerekiyor)
+    import tempfile
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
+        tmpfile.write(plot_image_bytes.getbuffer())
+        tmpfilepath = tmpfile.name
 
-    return pdf.output(dest="S").encode("latin1")
+    pdf.image(tmpfilepath, x=10, y=pdf.get_y() + 5, w=pdf.w - 20)
+
+    pdf_bytes = pdf.output(dest='S').encode('latin1')
+    return pdf_bytes
+
 
 st.title("Student Weekly Report Generator")
 
