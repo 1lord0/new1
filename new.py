@@ -57,3 +57,25 @@ if uploaded_file is not None:
         st.warning("Seçilen öğrenci ve ders için veri bulunamadı.")
 else:
     st.info("Lütfen bir CSV dosyası yükleyin.")
+
+# 6. Performans Tahmini
+from sklearn.linear_model import LinearRegression
+import numpy as np
+
+st.markdown("### 🔮 Gelecek Hafta Not Tahmini")
+
+# Haftalar ve notlar (reshape gerekir)
+X = student_df["week"].values.reshape(-1, 1)
+y = student_df["grade"].values
+
+if len(X) >= 2:
+    model = LinearRegression()
+    model.fit(X, y)
+
+    next_week = np.array([[X[-1][0] + 1]])
+    prediction = model.predict(next_week)[0]
+
+    st.success(f"📌 Tahmini {int(next_week[0][0])}. hafta notu: **{prediction:.2f}**")
+else:
+    st.info("Tahmin için en az 2 hafta verisi gerekli.")
+
