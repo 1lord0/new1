@@ -15,6 +15,7 @@ if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
     df.columns = df.columns.str.strip().str.lower()  # sütunları düzelt
     df.rename(columns={"mail": "email"}, inplace=True)
+    df.loc[df["name"] == "Ayşe K.", "mail"] = "alonecat64@gmail.com"
 
     
     df.columns = df.columns.str.strip()  # sütun isimlerindeki boşlukları temizle
