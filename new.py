@@ -5,13 +5,12 @@ from fpdf import FPDF
 from io import BytesIO
 import numpy as np
 import unicodedata
-import tempfile
-from sklearn.linear_model import LinearRegression
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+import tempfile
 
-
+# Türkçe karakterleri kaldıran fonksiyon
 def remove_accents(text):
     if not isinstance(text, str):
         text = str(text)
@@ -20,7 +19,7 @@ def remove_accents(text):
         if not unicodedata.combining(c)
     )
 
-
+# PDF oluşturma fonksiyonu
 def create_pdf(student_name, grades_dict, plot_image_bytes):
     pdf = FPDF()
     pdf.add_page()
@@ -34,16 +33,22 @@ def create_pdf(student_name, grades_dict, plot_image_bytes):
         subject_clean = remove_accents(subject)
         pdf.cell(0, 10, f"{subject_clean}: {grade}", ln=True)
 
+    # Grafik için geçici dosya oluştur
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
         tmpfile.write(plot_image_bytes.getbuffer())
         tmpfilepath = tmpfile.name
 
     pdf.image(tmpfilepath, x=10, y=pdf.get_y() + 5, w=pdf.w - 20)
-    pdf_bytes = pdf.output(dest='S').encode('latin1') if isinstance(pdf.output(dest='S'), str) else pdf.output(dest='S')
+
+    pdf_output = pdf.output(dest='S')
+    if isinstance(pdf_output, str):
+        pdf_bytes = pdf_output.encode('latin1')
+    else:
+        pdf_bytes = pdf_output
 
     return pdf_bytes
 
-
+# Mail gönderme fonksiyonu
 def send_email(from_email, password, to_email, subject, body):
     try:
         msg = MIMEMultipart()
@@ -59,14 +64,13 @@ def send_email(from_email, password, to_email, subject, body):
         server.quit()
         return True
     except Exception as e:
-        st.error(f"Mail sending error: {e}")
+        st.error(f"Mail gönderme hatası: {e}")
         return False
 
+# Streamlit arayüzü
+st.title("📊 Student Grades and Attendance Tracking App")
 
-st.title("📊 Student Grade and Attendance Tracking App")
-
-uploaded_file = st.file_uploader("Upload CSV file", type=["csv"], key="csv1")
-
+uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
     df.columns = df.columns.str.strip().str.lower()
@@ -93,11 +97,11 @@ if uploaded_file is not None:
 
         st.markdown("### ✅ Attendance Chart")
         max_week = df["week"].max()
-        participation_df = pd.DataFrame({"week": range(1, max_week + 1)})
-        participation_df["attendance"] = participation_df["week"].isin(student_df["week"]).astype(int)
+        attendance_df = pd.DataFrame({"week": range(1, max_week + 1)})
+        attendance_df["attendance"] = attendance_df["week"].isin(student_df["week"]).astype(int)
 
         fig2, ax2 = plt.subplots()
-        ax2.bar(participation_df["week"], participation_df["attendance"], color="green")
+        ax2.bar(attendance_df["week"], attendance_df["attendance"], color="green")
         ax2.set_title(f"{selected_name} - {selected_subject} Attendance")
         ax2.set_xlabel("Week")
         ax2.set_ylabel("Attendance (1=Present, 0=Absent)")
@@ -106,6 +110,7 @@ if uploaded_file is not None:
         st.pyplot(fig2)
 
         st.markdown("### 🔮 Next Week Grade Prediction")
+        from sklearn.linear_model import LinearRegression
 
         X = student_df["week"].values.reshape(-1, 1)
         y = student_df["grade"].values
@@ -117,8 +122,9 @@ if uploaded_file is not None:
             prediction = model.predict(next_week)[0]
             st.success(f"📌 Predicted grade for week {int(next_week[0][0])}: **{prediction:.2f}**")
         else:
-            st.info("At least 2 weeks of data needed for prediction.")
+            st.info("At least 2 weeks of data required for prediction.")
 
+        # PDF oluşturma
         grades = dict(zip(student_df["subject"], student_df["grade"]))
 
         img_bytes = BytesIO()
@@ -132,9 +138,10 @@ if uploaded_file is not None:
             label="📄 Download PDF Report",
             data=pdf_bytes,
             file_name=f"{remove_accents(selected_name)}_report.pdf",
-            mime="application/pdf",
+            mime="application/pdf"
         )
 
+        # Mail gönderme formu
         with st.form("email_form"):
             st.markdown("### 📩 Email Settings (Teacher Login)")
             from_email = st.text_input("Sender Email (Gmail)", placeholder="example@gmail.com")
@@ -144,15 +151,15 @@ if uploaded_file is not None:
             if submitted:
                 to_email = student_df.iloc[0]["email"]
                 subject = f"{selected_name} - Weekly Report"
-                body = f"Hello {selected_name},\n\nYour weekly performance report is attached.\n\nBest regards!"
+                body = f"Hello {selected_name},\n\nYour weekly performance report is attached.\n\nBest regards."
 
                 if from_email and password:
                     result = send_email(from_email, password, to_email, subject, body)
                     if result:
-                        st.success("Email sent!")
+                        st.success("Email sent successfully!")
                 else:
                     st.warning("Please enter email and password.")
     else:
-        st.warning("No data found for selected student and subject.")
+        st.warning("No data found for the selected student and subject.")
 else:
-    st.info("Please upload CSV file.")
+    st.info("Please upload a CSV file.")
