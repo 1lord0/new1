@@ -1,0 +1,13 @@
+student_id,name,email,classroom,subject,teacher,week,grade,attendance
+1,Ayşe K.,ayse@example.com,10A,Math,Mr. Smith,1,85,1
+1,Ayşe K.,ayse@example.com,10A,Math,Mr. Smith,2,90,1
+1,Ayşe K.,ayse@example.com,10A,Science,Ms. Johnson,1,78,1
+1,Ayşe K.,ayse@example.com,10A,Science,Ms. Johnson,2,82,1
+2,Mehmet T.,mehmet@example.com,10A,Math,Mr. Smith,1,70,0
+2,Mehmet T.,mehmet@example.com,10A,Math,Mr. Smith,2,75,1
+2,Mehmet T.,mehmet@example.com,10A,Science,Ms. Johnson,1,68,1
+2,Mehmet T.,mehmet@example.com,10A,Science,Ms. Johnson,2,72,0
+3,Ece D.,ece@example.com,10B,Math,Mr. Smith,1,95,1
+3,Ece D.,ece@example.com,10B,Math,Mr. Smith,2,96,1
+3,Ece D.,ece@example.com,10B,Science,Ms. Johnson,1,93,1
+3,Ece D.,ece@example.com,10B,Science,Ms. Johnson,2,92,1
