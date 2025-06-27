@@ -200,3 +200,71 @@ if uploaded_file is not None:
     )
 else:
     st.info("Lütfen CSV dosyasını yükleyin.")
+import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
+from fpdf import FPDF
+from io import BytesIO
+import tempfile
+
+def create_pdf(student_name, grades_dict, plot_image_bytes):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(0, 10, f"{student_name} Haftalık Performans Raporu", ln=True, align="C")
+
+    pdf.set_font("Arial", size=12)
+    pdf.ln(10)
+    for subject, grade in grades_dict.items():
+        pdf.cell(0, 10, f"{subject}: {grade}", ln=True)
+
+    # Geçici PNG dosyası oluştur ve yaz
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
+        tmpfile.write(plot_image_bytes.getbuffer())
+        tmpfilepath = tmpfile.name
+
+    # PNG dosyasını PDF'ye ekle
+    pdf.image(tmpfilepath, x=10, y=pdf.get_y() + 5, w=pdf.w - 20)
+
+    # PDF bytes olarak döndür
+    pdf_bytes = pdf.output(dest='S').encode('latin1')
+
+    return pdf_bytes
+
+st.title("Öğrenci Haftalık Raporları")
+
+uploaded_file = st.file_uploader("CSV Dosyanızı Yükleyin", type="csv", key="csv1")
+
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
+
+    students = df["name"].unique()
+    selected_student = st.selectbox("Öğrenci Seç", students)
+
+    student_data = df[df["name"] == selected_student]
+    grades = dict(zip(student_data["subject"], student_data["grade"]))
+
+    fig, ax = plt.subplots()
+    ax.bar(grades.keys(), grades.values(), color='skyblue')
+    ax.set_ylim(0, 100)
+    ax.set_title(f"{selected_student} - Haftalık Notlar")
+    ax.set_ylabel("Not")
+    ax.set_xlabel("Ders")
+
+    img_bytes = BytesIO()
+    fig.savefig(img_bytes, format='PNG')
+    plt.close(fig)
+    img_bytes.seek(0)
+
+    st.pyplot(fig)
+
+    pdf_bytes = create_pdf(selected_student, grades, img_bytes)
+
+    st.download_button(
+        label="PDF Raporu İndir",
+        data=pdf_bytes,
+        file_name=f"{selected_student}_rapor.pdf",
+        mime="application/pdf"
+    )
+else:
+    st.info("Lütfen CSV dosyasını yükleyin.")
