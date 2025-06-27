@@ -8,6 +8,7 @@ st.title("📊 Öğrenci Not ve Katılım Takip Uygulaması")
 
 # 1. CSV dosyası yükle
 uploaded_file = st.file_uploader("CSV dosyasını yükleyin", type=["csv"], key="file1")
+df.columns = df.columns.str.strip().str.lower()  # sütunları düzelt
 
 if uploaded_file is not None:
     # 2. Veriyi oku ve temizle
