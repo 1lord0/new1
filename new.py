@@ -43,6 +43,15 @@ def create_pdf(student_name, grades_dict, plot_image_bytes):
     pdf_bytes = pdf.output(dest="S")  # ✔️ DOĞRU
 
     return pdf.output(dest="S")  # encode gerekmez
+    pdf_bytes = pdf.output(dest="S").encode("latin1")  # bytes olarak al
+
+st.download_button(
+    label="📄 Download PDF",
+    data=pdf_bytes,
+    file_name=f"{student_name_ascii}_report.pdf",
+    mime="application/pdf"
+)
+
 
 
 
