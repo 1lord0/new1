@@ -1,59 +1,56 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.linear_model import LinearRegression
 from fpdf import FPDF
 from io import BytesIO
-import tempfile
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-import numpy as np
-
-# PDF oluşturma fonksiyonu (fpdf2 + Unicode destekli font)
-from fpdf import FPDF
-
-from fpdf import FPDF
-import tempfile
-
-def remove_non_ascii(text):
-    return ''.join(c for c in text if ord(c) < 128)
 
 def create_pdf(student_name, grades_dict, plot_image_bytes):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=16)
-
-    student_name_ascii = remove_non_ascii(student_name)
-    grades_ascii = {remove_non_ascii(k): v for k, v in grades_dict.items()}
-
-    pdf.cell(0, 10, f"{student_name_ascii} Weekly Performance Report", ln=True, align="C")
-
-    pdf.ln(10)
     pdf.set_font("Arial", size=12)
-    for subject, grade in grades_ascii.items():
+    pdf.cell(0, 10, f"{student_name} Weekly Performance Report", ln=True, align="C")
+    pdf.ln(10)
+    
+    for subject, grade in grades_dict.items():
         pdf.cell(0, 10, f"{subject}: {grade}", ln=True)
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
-        tmpfile.write(plot_image_bytes.getbuffer())
-        tmpfilepath = tmpfile.name
+    # Grafik dosyasını geçici olarak kaydet
+    plot_image_bytes.seek(0)
+    with open("temp_chart.png", "wb") as f:
+        f.write(plot_image_bytes.read())
+    pdf.image("temp_chart.png", x=10, y=pdf.get_y() + 5, w=pdf.w - 20)
 
-    pdf.image(tmpfilepath, x=10, y=pdf.get_y() + 5, w=pdf.w - 20)
+    return pdf.output(dest="S").encode("latin1")
 
-    pdf_bytes = pdf.output(dest="S").encode("utf-8", errors="ignore")
+st.title("Student Weekly Report Generator")
 
+uploaded_file = st.file_uploader("Upload CSV", type="csv")
+if uploaded_file:
+    df = pd.read_csv(uploaded_file)
+    selected_name = st.selectbox("Select Student", df["name"].unique())
 
-    return pdf.output(dest="S")  # encode gerekmez
-    pdf_bytes = pdf.output(dest="S").encode("latin1")  # bytes olarak al
+    student_data = df[df["name"] == selected_name]
+    grades = dict(zip(student_data["subject"], student_data["grade"]))
 
-st.download_button(
-    label="📄 Download PDF",
-    data=pdf_bytes,
-    file_name=f"{student_name_ascii}_report.pdf",
-    mime="application/pdf"
-)
+    fig, ax = plt.subplots()
+    ax.bar(grades.keys(), grades.values(), color='skyblue')
+    ax.set_ylim(0, 100)
+    ax.set_title(f"{selected_name} - Weekly Grades")
+    ax.set_ylabel("Grade")
+    ax.set_xlabel("Subject")
+    img_bytes = BytesIO()
+    fig.savefig(img_bytes, format='PNG')
+    plt.close(fig)
+    img_bytes.seek(0)
 
+    pdf_bytes = create_pdf(selected_name, grades, img_bytes)
 
+    st.download_button(
+        label="📄 Download PDF",
+        data=pdf_bytes,
+        file_name=f"{selected_name}_report.pdf",
+        mime="application/pdf"
+    )
 
 
 
