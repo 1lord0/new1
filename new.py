@@ -13,19 +13,27 @@ import numpy as np
 # PDF oluşturma fonksiyonu (fpdf2 + Unicode destekli font)
 from fpdf import FPDF
 
+from fpdf import FPDF
+import tempfile
+
+def remove_non_ascii(text):
+    return ''.join(c for c in text if ord(c) < 128)
+
 def create_pdf(student_name, grades_dict, plot_image_bytes):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=16)  # Standart Arial font, unicode desteği sınırlı ama İngilizce için yeterli
-    pdf.cell(0, 10, f"{student_name} Weekly Performance Report", ln=True, align="C")
+    pdf.set_font("Arial", size=16)
+
+    student_name_ascii = remove_non_ascii(student_name)
+    grades_ascii = {remove_non_ascii(k): v for k, v in grades_dict.items()}
+
+    pdf.cell(0, 10, f"{student_name_ascii} Weekly Performance Report", ln=True, align="C")
 
     pdf.ln(10)
     pdf.set_font("Arial", size=12)
-    for subject, grade in grades_dict.items():
+    for subject, grade in grades_ascii.items():
         pdf.cell(0, 10, f"{subject}: {grade}", ln=True)
 
-    # Grafik için geçici PNG dosyası oluştur
-    import tempfile
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
         tmpfile.write(plot_image_bytes.getbuffer())
         tmpfilepath = tmpfile.name
@@ -34,6 +42,7 @@ def create_pdf(student_name, grades_dict, plot_image_bytes):
 
     pdf_bytes = pdf.output(dest="S").encode("latin1")
     return pdf_bytes
+
 
 
 # Mail gönderme fonksiyonu
