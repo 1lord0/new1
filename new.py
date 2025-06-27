@@ -74,23 +74,5 @@ st.title("📊 Öğrenci Not ve Katılım Uygulaması")
 
 uploaded_file = st.file_uploader("CSV dosyasını yükleyin", type=["csv"])
 
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)   # 🔴 BU OLMADAN 'df' KULLANAMAZSIN
-    df.columns = df.columns.str.strip()
-
-    # Devamı...
-    student_names = df["name"].unique()
-    selected_name = st.selectbox("Öğrenci Seçin", student_names)
-
-    subjects = df[df["name"] == selected_name]["subject"].unique()
-    selected_subject = st.selectbox("Ders Seçin", subjects)
-
-    student_df = df[(df["name"] == selected_name) & (df["subject"] == selected_subject)]
-    
-    # devamı burada...
-
-else:
-    st.warning("Lütfen CSV dosyası yükleyin.")
-
 
 
