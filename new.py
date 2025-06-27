@@ -41,7 +41,7 @@ if uploaded_file is not None:
         # KATILIM GRAFİĞİ
         st.markdown("### ✅ Derse Katılım Grafiği")
         participation_df = pd.DataFrame({
-            "week": range(1, 6),  # 5 hafta olduğunu varsayıyoruz
+            "week": range(1, len(df["week"].unique())),  # 5 hafta olduğunu varsayıyoruz
         })
         participation_df["katılım"] = participation_df["week"].isin(student_df["week"]).astype(int)
 
