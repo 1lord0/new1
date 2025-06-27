@@ -113,7 +113,7 @@ def send_email(from_email, password, to_email, subject, body):
 
 st.title("Öğrenci Performans Mail Gönderme")
 
-uploaded_file = st.file_uploader("CSV Dosyanızı Yükleyin", type="csv1")
+uploaded_file = st.file_uploader("CSV Dosyanızı Yükleyin", type="csv",key="csv1")
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
     selected_student = st.selectbox("Öğrenci Seç", df["name"].unique())
@@ -159,7 +159,7 @@ def create_pdf(student_name, grades_dict, plot_image_bytes):
 
 st.title("Öğrenci Haftalık Raporları")
 
-uploaded_file = st.file_uploader("CSV Dosyanızı Yükleyin", type="csv2")
+uploaded_file = st.file_uploader("CSV Dosyanızı Yükleyin", type="csv",key="csv2")
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
