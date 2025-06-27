@@ -65,8 +65,6 @@ print(students[1])
 
 
 
-
-""""
 import matplotlib.pyplot as plt
 
 # Ayşe K.'nın Math dersi notlarının haftalara göre çizilmesi
@@ -78,7 +76,5 @@ plt.xlabel("Hafta")
 plt.ylabel("Not")
 plt.grid(True)
 plt.show()
-
-"""
 
 
