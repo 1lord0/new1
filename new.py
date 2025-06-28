@@ -678,18 +678,63 @@ def schedule_monday_reports(df, email_settings):
                 })
             
             # Send student reports
-            success_count = 0
-            error_count = 0
-            
-            students = df['name'].unique()
-            
-            for student_name in students:
-                try:
-                    student_subjects = df[df['name'] == student_name]['subject'].unique()
-                    
-                    for subject in student_subjects:
-                        student_df = df[(df['name'] == student_name) & (df['subject'] == subject)]
-                        
-                        if not student_df.empty:
-                            # Calculate metrics
-                            metrics = calculate_performance
+from io import BytesIO
+import matplotlib.pyplot as plt
+
+# Performans hesaplama (örnek basit fonksiyon)
+def calculate_performance(student_df):
+    avg_grade = student_df["grade"].mean()
+    return avg_grade
+
+success_count = 0
+error_count = 0
+
+students = df['name'].unique()
+
+for student_name in students:
+    try:
+        student_subjects = df[df['name'] == student_name]['subject'].unique()
+        grades_dict = {}
+
+        for subject in student_subjects:
+            student_df = df[(df['name'] == student_name) & (df['subject'] == subject)]
+
+            if not student_df.empty:
+                avg_grade = calculate_performance(student_df)
+                grades_dict[subject] = round(avg_grade, 2)
+
+        # Bar chart (grafik)
+        fig, ax = plt.subplots()
+        ax.bar(grades_dict.keys(), grades_dict.values(), color='skyblue')
+        ax.set_ylim(0, 100)
+        ax.set_title(f"{student_name} - Weekly Grades")
+        ax.set_ylabel("Grade")
+        ax.set_xlabel("Subject")
+
+        img_bytes = BytesIO()
+        fig.savefig(img_bytes, format='PNG')
+        plt.close(fig)
+        img_bytes.seek(0)
+
+        # PDF oluştur
+        pdf_bytes = create_pdf(student_name, grades_dict, img_bytes)
+
+        # E-posta bilgileri
+        student_email = df[df['name'] == student_name].iloc[0]['email']
+        subject_line = f"{student_name} - Weekly Report"
+        body = f"Hi {student_name},\n\nAttached is your weekly performance report.\n\nBest regards."
+
+        send_result = send_email(from_email, password, student_email, subject_line, body)
+
+        if send_result:
+            success_count += 1
+        else:
+            error_count += 1
+
+    except Exception as e:
+        error_count += 1
+        st.error(f"Error for {student_name}: {e}")
+
+st.success(f"✅ Reports sent: {success_count}")
+if error_count:
+    st.warning(f"⚠️ Errors occurred for {error_count} students.")
