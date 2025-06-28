@@ -12,6 +12,10 @@ from email import encoders
 import tempfile
 import os
 import logging
+import time
+import threading
+from datetime import datetime, timedelta
+import json
 
 # Try to import optional dependencies
 try:
@@ -33,6 +37,19 @@ except ImportError:
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Initialize session state for scheduler
+if 'email_scheduler' not in st.session_state:
+    st.session_state.email_scheduler = {
+        'active': False,
+        'frequency': 'weekly',
+        'last_sent': None,
+        'next_send': None,
+        'email_settings': {}
+    }
+
+if 'email_logs' not in st.session_state:
+    st.session_state.email_logs = []
 
 # Türkçe karakterleri kaldıran fonksiyon
 def remove_accents(text):
@@ -190,6 +207,124 @@ def create_pdf(student_name, student_df, plot_image_bytes):
         return None
 
 def send_email(from_email, password, to_email, subject, body, pdf_bytes, student_name):
+    """Send reports to all students"""
+    success_count = 0
+    error_count = 0
+    
+    students = df['name'].unique()
+    
+    for student_name in students:
+        try:
+            # Get student data
+            student_subjects = df[df['name'] == student_name]['subject'].unique()
+            
+            for subject in student_subjects:
+                student_df = df[(df['name'] == student_name) & (df['subject'] == subject)]
+                
+                if not student_df.empty:
+                    # Create chart
+                    fig, img_bytes = create_performance_chart(student_df, student_name, subject)
+                    
+                    if fig and img_bytes:
+                        # Create PDF
+                        pdf_bytes = create_pdf(student_name, student_df, img_bytes)
+                        plt.close(fig)
+                        
+                        if pdf_bytes:
+                            # Send email
+                            to_email = student_df.iloc[0]["email"]
+                            subject_line = f"{student_name} - {frequency.title()} Performans Raporu"
+                            body = f"""Merhaba {student_name},
+
+{frequency.title()} performans raporunuz ektedir.
+
+Özet Bilgiler ({subject}):
+- Ortalama Not: {student_df['grade'].mean():.1f}
+- En Yüksek Not: {student_df['grade'].max():.0f}
+- Toplam Hafta: {len(student_df)}
+
+Bu rapor otomatik olarak gönderilmiştir.
+
+İyi çalışmalar dileriz.
+"""
+                            
+                            result = send_email(from_email, password, to_email, subject_line, body, pdf_bytes, student_name)
+                            if result:
+                                success_count += 1
+                                log_entry = {
+                                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                    'student': student_name,
+                                    'subject': subject,
+                                    'status': 'success',
+                                    'email': to_email
+                                }
+                            else:
+                                error_count += 1
+                                log_entry = {
+                                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                    'student': student_name,
+                                    'subject': subject,
+                                    'status': 'error',
+                                    'email': to_email
+                                }
+                            
+                            st.session_state.email_logs.append(log_entry)
+                            
+                            # Small delay between emails
+                            time.sleep(1)
+                        
+        except Exception as e:
+            error_count += 1
+            logger.error(f"Error sending report for {student_name}: {e}")
+    
+    return success_count, error_count
+
+def check_and_send_scheduled_emails(df):
+    """Check if it's time to send scheduled emails"""
+    if not st.session_state.email_scheduler['active']:
+        return
+    
+    now = datetime.now()
+    next_send = st.session_state.email_scheduler.get('next_send')
+    
+    if next_send and now >= datetime.fromisoformat(next_send):
+        settings = st.session_state.email_scheduler['email_settings']
+        
+        if settings.get('from_email') and settings.get('password'):
+            with st.spinner("Otomatik raporlar gönderiliyor..."):
+                success, errors = send_bulk_reports(
+                    df, 
+                    settings['from_email'], 
+                    settings['password'],
+                    st.session_state.email_scheduler['frequency']
+                )
+                
+                st.success(f"✅ {success} rapor gönderildi, {errors} hata oluştu")
+                
+                # Update schedule
+                frequency = st.session_state.email_scheduler['frequency']
+                if frequency == 'daily':
+                    next_send = now + timedelta(days=1)
+                elif frequency == 'weekly':
+                    next_send = now + timedelta(weeks=1)
+                elif frequency == 'monthly':
+                    next_send = now + timedelta(days=30)
+                
+                st.session_state.email_scheduler['last_sent'] = now.isoformat()
+                st.session_state.email_scheduler['next_send'] = next_send.isoformat()
+                
+                st.rerun()
+
+def get_next_send_time(frequency):
+    """Calculate next send time based on frequency"""
+    now = datetime.now()
+    if frequency == 'daily':
+        return now + timedelta(days=1)
+    elif frequency == 'weekly':
+        return now + timedelta(weeks=1)
+    elif frequency == 'monthly':
+        return now + timedelta(days=30)
+    return now
     """Send email with PDF attachment"""
     try:
         msg = MIMEMultipart()
@@ -290,6 +425,10 @@ if uploaded_file is not None:
             st.error(error_msg)
             st.stop()
         
+        # Check for scheduled emails
+        if uploaded_file is not None:
+            check_and_send_scheduled_emails(df)
+        
         # Student selection
         student_names = sorted(df["name"].unique())
         if len(student_names) == 0:
@@ -370,11 +509,9 @@ if uploaded_file is not None:
                     
                     with col2:
                         # Email form
-                        with st.expander("📩 E-posta Gönder"):
-                            st.info("Gmail App Password gerekli: https://myaccount.google.com/security")
-                            
-                            from_email = st.text_input("Gönderici E-posta", placeholder="ornek@gmail.com")
-                            password = st.text_input("App Password", type="password")
+                        with st.expander("📩 Tek Sefer E-posta Gönder"):
+                            from_email = st.text_input("Gönderici E-posta", placeholder="ornek@gmail.com", key="single_email")
+                            password = st.text_input("App Password", type="password", key="single_password")
                             
                             if st.button("E-posta Gönder", type="primary"):
                                 if from_email and password:
@@ -398,6 +535,106 @@ Haftalık performans raporunuz ektedir.
                                             st.success("✅ E-posta başarıyla gönderildi!")
                                 else:
                                     st.warning("Lütfen e-posta ve App Password girin.")
+                
+                # NEW: Scheduled Email Section
+                st.markdown("### ⏰ Otomatik Rapor Gönderimi")
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("#### 📅 Zamanlama Ayarları")
+                    
+                    frequency = st.selectbox(
+                        "Gönderim Sıklığı",
+                        ["daily", "weekly", "monthly"],
+                        format_func=lambda x: {"daily": "Günlük", "weekly": "Haftalık", "monthly": "Aylık"}[x],
+                        index=1
+                    )
+                    
+                    # Email settings for scheduler
+                    scheduler_email = st.text_input("Gönderici E-posta (Zamanlayıcı)", placeholder="ornek@gmail.com", key="scheduler_email")
+                    scheduler_password = st.text_input("App Password (Zamanlayıcı)", type="password", key="scheduler_password")
+                    
+                    col_start, col_stop = st.columns(2)
+                    
+                    with col_start:
+                        if st.button("🚀 Otomatik Gönderimi Başlat", type="primary"):
+                            if scheduler_email and scheduler_password:
+                                st.session_state.email_scheduler['active'] = True
+                                st.session_state.email_scheduler['frequency'] = frequency
+                                st.session_state.email_scheduler['email_settings'] = {
+                                    'from_email': scheduler_email,
+                                    'password': scheduler_password
+                                }
+                                
+                                next_send = get_next_send_time(frequency)
+                                st.session_state.email_scheduler['next_send'] = next_send.isoformat()
+                                
+                                st.success(f"✅ Otomatik gönderim başlatıldı! Sonraki gönderim: {next_send.strftime('%Y-%m-%d %H:%M')}")
+                                st.rerun()
+                            else:
+                                st.warning("Lütfen e-posta bilgilerini girin.")
+                    
+                    with col_stop:
+                        if st.button("⏹️ Otomatik Gönderimi Durdur"):
+                            st.session_state.email_scheduler['active'] = False
+                            st.session_state.email_scheduler['next_send'] = None
+                            st.warning("Otomatik gönderim durduruldu.")
+                            st.rerun()
+                
+                with col2:
+                    st.markdown("#### 📊 Durum Bilgisi")
+                    
+                    if st.session_state.email_scheduler['active']:
+                        st.success("🟢 Otomatik gönderim aktif")
+                        
+                        frequency_text = {
+                            "daily": "Günlük", 
+                            "weekly": "Haftalık", 
+                            "monthly": "Aylık"
+                        }[st.session_state.email_scheduler['frequency']]
+                        
+                        st.info(f"📅 Sıklık: {frequency_text}")
+                        
+                        if st.session_state.email_scheduler.get('next_send'):
+                            next_send = datetime.fromisoformat(st.session_state.email_scheduler['next_send'])
+                            st.info(f"⏰ Sonraki gönderim: {next_send.strftime('%Y-%m-%d %H:%M')}")
+                        
+                        if st.session_state.email_scheduler.get('last_sent'):
+                            last_sent = datetime.fromisoformat(st.session_state.email_scheduler['last_sent'])
+                            st.info(f"✅ Son gönderim: {last_sent.strftime('%Y-%m-%d %H:%M')}")
+                        
+                        # Manual send button
+                        if st.button("📤 Şimdi Tüm Raporları Gönder"):
+                            settings = st.session_state.email_scheduler['email_settings']
+                            with st.spinner("Tüm raporlar gönderiliyor..."):
+                                success, errors = send_bulk_reports(
+                                    df, 
+                                    settings['from_email'], 
+                                    settings['password'],
+                                    "manuel"
+                                )
+                                st.success(f"✅ {success} rapor gönderildi, {errors} hata oluştu")
+                    else:
+                        st.warning("🔴 Otomatik gönderim kapalı")
+                
+                # Email logs
+                if st.session_state.email_logs:
+                    st.markdown("#### 📜 Gönderim Geçmişi")
+                    
+                    # Show last 10 logs
+                    recent_logs = st.session_state.email_logs[-10:]
+                    log_df = pd.DataFrame(recent_logs)
+                    
+                    if not log_df.empty:
+                        st.dataframe(
+                            log_df[['timestamp', 'student', 'subject', 'status', 'email']], 
+                            use_container_width=True
+                        )
+                        
+                        if st.button("🗑️ Geçmişi Temizle"):
+                            st.session_state.email_logs = []
+                            st.rerun()
             else:
                 st.warning("📄 PDF özelliği kullanılamıyor. Lütfen fpdf2 kütüphanesini yükleyin: `pip install fpdf2`")
     
