@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 from io import BytesIO
 import numpy as np
 import unicodedata
@@ -16,6 +17,8 @@ import time
 import threading
 from datetime import datetime, timedelta
 import json
+import schedule
+from concurrent.futures import ThreadPoolExecutor
 
 # Try to import optional dependencies
 try:
@@ -30,6 +33,7 @@ except ImportError:
 
 try:
     from sklearn.linear_model import LinearRegression
+    from sklearn.metrics import r2_score
     SKLEARN_AVAILABLE = True
 except ImportError:
     SKLEARN_AVAILABLE = False
@@ -38,11 +42,12 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize session state for scheduler
+# Initialize session state
 if 'email_scheduler' not in st.session_state:
     st.session_state.email_scheduler = {
         'active': False,
-        'frequency': 'weekly',
+        'send_time': '12:00',
+        'send_day': 'Monday',
         'last_sent': None,
         'next_send': None,
         'email_settings': {}
@@ -51,7 +56,13 @@ if 'email_scheduler' not in st.session_state:
 if 'email_logs' not in st.session_state:
     st.session_state.email_logs = []
 
-# Türkçe karakterleri kaldıran fonksiyon
+if 'teacher_reports' not in st.session_state:
+    st.session_state.teacher_reports = []
+
+# Set matplotlib style for better looking charts
+plt.style.use('seaborn-v0_8')
+sns.set_palette("husl")
+
 def remove_accents(text):
     """Remove accents from Turkish characters for filename safety"""
     if not isinstance(text, str):
@@ -61,16 +72,106 @@ def remove_accents(text):
         if not unicodedata.combining(c)
     )
 
-def create_performance_chart(student_df, selected_name, selected_subject):
-    """Create performance chart and return figure and image bytes"""
+def calculate_performance_metrics(student_df):
+    """Calculate comprehensive performance metrics"""
+    metrics = {}
+    
+    if len(student_df) >= 2:
+        # Trend analysis
+        weeks = student_df['week'].values
+        grades = student_df['grade'].values
+        
+        # Calculate trend
+        correlation = np.corrcoef(weeks, grades)[0, 1]
+        if np.isnan(correlation):
+            correlation = 0
+        
+        # Performance change
+        recent_avg = grades[-2:].mean() if len(grades) >= 2 else grades[-1]
+        earlier_avg = grades[:-2].mean() if len(grades) > 2 else grades[0]
+        change = recent_avg - earlier_avg
+        
+        # Consistency (inverse of standard deviation)
+        consistency = max(0, 100 - grades.std())
+        
+        metrics.update({
+            'trend': 'Yükseliş' if correlation > 0.1 else 'Düşüş' if correlation < -0.1 else 'Kararlı',
+            'trend_strength': abs(correlation),
+            'performance_change': change,
+            'consistency_score': consistency,
+            'improvement_rate': change / len(weeks) if len(weeks) > 1 else 0
+        })
+    
+    # Basic stats
+    metrics.update({
+        'current_grade': student_df['grade'].iloc[-1] if not student_df.empty else 0,
+        'average_grade': student_df['grade'].mean(),
+        'max_grade': student_df['grade'].max(),
+        'min_grade': student_df['grade'].min(),
+        'total_weeks': len(student_df),
+        'last_week': student_df['week'].max()
+    })
+    
+    return metrics
+
+def create_enhanced_performance_chart(student_df, selected_name, selected_subject):
+    """Create enhanced performance chart with trend analysis"""
     try:
-        fig, ax = plt.subplots(figsize=(10, 6))
-        ax.plot(student_df["week"], student_df["grade"], marker="o", linewidth=2, markersize=8)
-        ax.set_xlabel("Hafta", fontsize=12)
-        ax.set_ylabel("Not", fontsize=12)
-        ax.set_title(f"{selected_name} - {selected_subject} Notları", fontsize=14, fontweight='bold')
-        ax.grid(True, alpha=0.3)
-        ax.set_ylim(0, 100)  # Assume grades are 0-100
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
+        
+        # Main performance chart
+        weeks = student_df["week"].values
+        grades = student_df["grade"].values
+        
+        # Plot line with markers
+        ax1.plot(weeks, grades, marker="o", linewidth=3, markersize=8, label='Notlar')
+        
+        # Add trend line if enough data
+        if len(weeks) >= 3:
+            z = np.polyfit(weeks, grades, 1)
+            p = np.poly1d(z)
+            ax1.plot(weeks, p(weeks), "--", alpha=0.7, linewidth=2, label='Trend')
+        
+        # Highlight last grade
+        ax1.scatter(weeks[-1], grades[-1], color='red', s=150, zorder=5, label='Son Not')
+        
+        # Add grade labels
+        for i, (week, grade) in enumerate(zip(weeks, grades)):
+            ax1.annotate(f'{grade:.0f}', (week, grade), 
+                        textcoords="offset points", xytext=(0,10), ha='center')
+        
+        ax1.set_xlabel("Hafta", fontsize=12)
+        ax1.set_ylabel("Not", fontsize=12)
+        ax1.set_title(f"{selected_name} - {selected_subject} Detaylı Performans Analizi", 
+                     fontsize=14, fontweight='bold')
+        ax1.grid(True, alpha=0.3)
+        ax1.set_ylim(0, 100)
+        ax1.legend()
+        
+        # Performance comparison chart
+        if len(grades) >= 2:
+            # Calculate moving averages
+            if len(grades) >= 3:
+                moving_avg = np.convolve(grades, np.ones(3)/3, mode='valid')
+                moving_weeks = weeks[2:]
+                ax2.plot(moving_weeks, moving_avg, marker="s", linewidth=2, 
+                        label='3 Haftalık Ortalama', color='orange')
+            
+            # Show grade differences
+            grade_diff = np.diff(grades)
+            week_diff = weeks[1:]
+            colors = ['green' if diff >= 0 else 'red' for diff in grade_diff]
+            
+            ax2.bar(week_diff, grade_diff, color=colors, alpha=0.7, 
+                   label='Haftalık Değişim')
+            ax2.axhline(y=0, color='black', linestyle='-', alpha=0.3)
+            ax2.set_xlabel("Hafta", fontsize=12)
+            ax2.set_ylabel("Not Değişimi", fontsize=12)
+            ax2.set_title("Haftalık Performans Değişimi", fontsize=12, fontweight='bold')
+            ax2.grid(True, alpha=0.3)
+            ax2.legend()
+        
+        plt.tight_layout()
         
         # Save to bytes
         img_bytes = BytesIO()
@@ -79,120 +180,297 @@ def create_performance_chart(student_df, selected_name, selected_subject):
         
         return fig, img_bytes
     except Exception as e:
-        logger.error(f"Error creating performance chart: {e}")
+        logger.error(f"Error creating enhanced performance chart: {e}")
         return None, None
 
-def create_attendance_chart(student_df, selected_name, selected_subject, max_week):
-    """Create attendance chart"""
+def predict_future_performance(student_df, weeks_ahead=4):
+    """Predict future performance with confidence intervals"""
+    if not SKLEARN_AVAILABLE or len(student_df) < 3:
+        return None
+        
     try:
-        attendance_df = pd.DataFrame({"week": range(1, max_week + 1)})
-        attendance_df["attendance"] = attendance_df["week"].isin(student_df["week"]).astype(int)
+        X = student_df["week"].values.reshape(-1, 1)
+        y = student_df["grade"].values
+        
+        # Fit linear regression
+        model = LinearRegression()
+        model.fit(X, y)
+        
+        # Calculate R-squared for model reliability
+        y_pred = model.predict(X)
+        r2 = r2_score(y, y_pred)
+        
+        # Predict future weeks
+        last_week = student_df["week"].max()
+        future_weeks = np.arange(last_week + 1, last_week + weeks_ahead + 1).reshape(-1, 1)
+        future_predictions = model.predict(future_weeks)
+        
+        # Calculate prediction confidence based on R-squared and data variance
+        residuals = y - y_pred
+        residual_std = np.std(residuals)
+        confidence_interval = 1.96 * residual_std  # 95% confidence interval
+        
+        predictions = []
+        for i, (week, pred) in enumerate(zip(future_weeks.flatten(), future_predictions)):
+            # Adjust confidence based on how far into future
+            adjusted_confidence = confidence_interval * (1 + i * 0.2)
+            
+            predictions.append({
+                'week': int(week),
+                'predicted_grade': max(0, min(100, pred)),
+                'confidence_lower': max(0, pred - adjusted_confidence),
+                'confidence_upper': min(100, pred + adjusted_confidence),
+                'model_reliability': r2
+            })
+        
+        return predictions
+    except Exception as e:
+        logger.error(f"Error in future performance prediction: {e}")
+        return None
 
+def create_comparison_chart(student_df, class_avg_df=None):
+    """Create chart comparing student performance to class average"""
+    try:
         fig, ax = plt.subplots(figsize=(10, 6))
-        colors = ['red' if x == 0 else 'green' for x in attendance_df["attendance"]]
-        ax.bar(attendance_df["week"], attendance_df["attendance"], color=colors, alpha=0.7)
-        ax.set_title(f"{selected_name} - {selected_subject} Devam Durumu", fontsize=14, fontweight='bold')
+        
+        weeks = student_df["week"].values
+        grades = student_df["grade"].values
+        
+        ax.plot(weeks, grades, marker="o", linewidth=3, markersize=8, 
+               label='Öğrenci Performansı', color='blue')
+        
+        if class_avg_df is not None and not class_avg_df.empty:
+            class_weeks = class_avg_df["week"].values
+            class_grades = class_avg_df["grade"].values
+            ax.plot(class_weeks, class_grades, marker="s", linewidth=2, 
+                   label='Sınıf Ortalaması', color='red', alpha=0.7)
+            
+            # Fill between to show above/below average
+            ax.fill_between(weeks, grades, 
+                           np.interp(weeks, class_weeks, class_grades),
+                           alpha=0.2, color='green', 
+                           where=(grades >= np.interp(weeks, class_weeks, class_grades)),
+                           label='Ortalama Üstü')
+            ax.fill_between(weeks, grades, 
+                           np.interp(weeks, class_weeks, class_grades),
+                           alpha=0.2, color='red',
+                           where=(grades < np.interp(weeks, class_weeks, class_grades)),
+                           label='Ortalama Altı')
+        
         ax.set_xlabel("Hafta", fontsize=12)
-        ax.set_ylabel("Devam (1=Var, 0=Yok)", fontsize=12)
-        ax.set_yticks([0, 1])
-        ax.set_ylim(0, 1.2)
+        ax.set_ylabel("Not", fontsize=12)
+        ax.set_title("Öğrenci vs Sınıf Ortalaması Karşılaştırması", 
+                    fontsize=14, fontweight='bold')
         ax.grid(True, alpha=0.3)
+        ax.legend()
+        ax.set_ylim(0, 100)
         
         return fig
     except Exception as e:
-        logger.error(f"Error creating attendance chart: {e}")
+        logger.error(f"Error creating comparison chart: {e}")
         return None
 
-def predict_next_grade(student_df):
-    """Predict next week's grade using linear regression"""
-    if not SKLEARN_AVAILABLE:
-        st.warning("Tahmin özelliği için scikit-learn kütüphanesi gerekli. 'pip install scikit-learn' ile yükleyebilirsiniz.")
-        return None, None
-        
+def generate_teacher_summary(df):
+    """Generate comprehensive teacher summary report"""
     try:
-        from sklearn.linear_model import LinearRegression
+        summary = {
+            'report_date': datetime.now().strftime('%Y-%m-%d %H:%M'),
+            'total_students': df['name'].nunique(),
+            'total_subjects': df['subject'].nunique(),
+            'current_week': df['week'].max(),
+            'subjects': {}
+        }
         
-        X = student_df["week"].values.reshape(-1, 1)
-        y = student_df["grade"].values
-
-        if len(X) >= 2 and len(np.unique(y)) > 1:
-            model = LinearRegression()
-            model.fit(X, y)
-            next_week = np.array([[X[-1][0] + 1]])
-            prediction = model.predict(next_week)[0]
+        # Subject-wise analysis
+        for subject in df['subject'].unique():
+            subject_df = df[df['subject'] == subject]
+            current_week_data = subject_df[subject_df['week'] == subject_df['week'].max()]
             
-            # Ensure prediction is within reasonable bounds
-            prediction = max(0, min(100, prediction))
+            # Performance metrics
+            subject_metrics = {
+                'student_count': subject_df['name'].nunique(),
+                'average_grade': subject_df['grade'].mean(),
+                'current_week_avg': current_week_data['grade'].mean(),
+                'highest_grade': subject_df['grade'].max(),
+                'lowest_grade': subject_df['grade'].min(),
+                'grade_distribution': {
+                    'A (90-100)': len(subject_df[subject_df['grade'] >= 90]),
+                    'B (80-89)': len(subject_df[(subject_df['grade'] >= 80) & (subject_df['grade'] < 90)]),
+                    'C (70-79)': len(subject_df[(subject_df['grade'] >= 70) & (subject_df['grade'] < 80)]),
+                    'D (60-69)': len(subject_df[(subject_df['grade'] >= 60) & (subject_df['grade'] < 70)]),
+                    'F (<60)': len(subject_df[subject_df['grade'] < 60])
+                },
+                'students_at_risk': [],
+                'top_performers': [],
+                'most_improved': []
+            }
             
-            return int(next_week[0][0]), prediction
-        else:
-            return None, None
+            # Identify students needing attention
+            for student in subject_df['name'].unique():
+                student_data = subject_df[subject_df['name'] == student].sort_values('week')
+                
+                if len(student_data) >= 2:
+                    recent_avg = student_data['grade'].tail(2).mean()
+                    overall_avg = student_data['grade'].mean()
+                    trend = student_data['grade'].diff().tail(3).mean()
+                    
+                    # At risk: low grades or negative trend
+                    if recent_avg < 60 or (trend < -5 and recent_avg < 75):
+                        subject_metrics['students_at_risk'].append({
+                            'name': student,
+                            'recent_avg': recent_avg,
+                            'trend': trend
+                        })
+                    
+                    # Top performers
+                    if recent_avg >= 90:
+                        subject_metrics['top_performers'].append({
+                            'name': student,
+                            'recent_avg': recent_avg
+                        })
+                    
+                    # Most improved
+                    if trend > 5:
+                        subject_metrics['most_improved'].append({
+                            'name': student,
+                            'improvement': trend
+                        })
+            
+            summary['subjects'][subject] = subject_metrics
+        
+        return summary
     except Exception as e:
-        logger.error(f"Error in grade prediction: {e}")
-        return None, None
+        logger.error(f"Error generating teacher summary: {e}")
+        return None
 
-def create_pdf(student_name, student_df, plot_image_bytes):
-    """Create PDF report with improved error handling"""
+def create_enhanced_pdf(student_name, student_df, plot_image_bytes, metrics, predictions=None, class_comparison=None):
+    """Create comprehensive PDF report"""
     if not FPDF_AVAILABLE:
-        st.error("PDF kütüphanesi yüklenmemiş. Lütfen 'pip install fpdf2' veya 'pip install fpdf' komutu ile yükleyin.")
+        st.error("PDF kütüphanesi yüklenmemiş. Lütfen 'pip install fpdf2' komutu ile yükleyin.")
         return None
         
     try:
         pdf = FPDF()
         pdf.add_page()
         
-        # Try to use Unicode font, fallback to default
+        # Font setup
         try:
             pdf.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
             pdf.set_font('DejaVu', size=16)
         except (FileNotFoundError, RuntimeError):
-            # Use basic ASCII characters only
             pdf.set_font("Arial", size=16)
             student_name = remove_accents(student_name)
 
-        # Title
-        pdf.cell(0, 15, f"{student_name} Haftalik Performans Raporu", ln=True, align="C")
-        pdf.ln(10)
-
-        # Grades table
-        pdf.set_font_size(12)
-        pdf.cell(0, 10, "NOTLAR:", ln=True)
+        # Header
+        pdf.cell(0, 15, f"{student_name} - Haftalik Detay Performans Raporu", ln=True, align="C")
         pdf.ln(5)
         
-        for _, row in student_df.iterrows():
-            pdf.cell(0, 8, f"Hafta {int(row['week'])}: {row['grade']}", ln=True)
+        # Report date
+        pdf.set_font_size(10)
+        pdf.cell(0, 8, f"Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}", ln=True, align="R")
+        pdf.ln(5)
 
-        pdf.ln(10)
+        # Performance Summary
+        pdf.set_font_size(14)
+        pdf.cell(0, 10, "PERFORMANS OZETI:", ln=True)
+        pdf.set_font_size(10)
+        pdf.ln(3)
         
-        # Add chart if available
+        # Current status
+        pdf.cell(0, 6, f"Guncel Not: {metrics['current_grade']:.1f}", ln=True)
+        pdf.cell(0, 6, f"Genel Ortalama: {metrics['average_grade']:.1f}", ln=True)
+        pdf.cell(0, 6, f"En Yuksek Not: {metrics['max_grade']:.0f}", ln=True)
+        pdf.cell(0, 6, f"Trend: {metrics.get('trend', 'Belirsiz')}", ln=True)
+        
+        if 'performance_change' in metrics:
+            change_text = f"+{metrics['performance_change']:.1f}" if metrics['performance_change'] >= 0 else f"{metrics['performance_change']:.1f}"
+            pdf.cell(0, 6, f"Son Performans Degisimi: {change_text} puan", ln=True)
+        
+        pdf.ln(5)
+
+        # Weekly grades table
+        pdf.set_font_size(12)
+        pdf.cell(0, 8, "HAFTALIK NOTLAR:", ln=True)
+        pdf.set_font_size(10)
+        pdf.ln(3)
+        
+        for _, row in student_df.iterrows():
+            week_num = int(row['week'])
+            grade = row['grade']
+            
+            # Color coding for grades
+            if grade >= 90:
+                grade_status = " (Mukemmel)"
+            elif grade >= 80:
+                grade_status = " (Iyi)"
+            elif grade >= 70:
+                grade_status = " (Orta)"
+            elif grade >= 60:
+                grade_status = " (Gecti)"
+            else:
+                grade_status = " (Kaldi)"
+                
+            pdf.cell(0, 6, f"Hafta {week_num}: {grade:.1f}{grade_status}", ln=True)
+
+        pdf.ln(5)
+        
+        # Predictions
+        if predictions:
+            pdf.set_font_size(12)
+            pdf.cell(0, 8, "GELECEK HAFTA TAHMINLERI:", ln=True)
+            pdf.set_font_size(10)
+            pdf.ln(3)
+            
+            for pred in predictions[:2]:  # Show only next 2 weeks
+                pdf.cell(0, 6, f"Hafta {pred['week']}: {pred['predicted_grade']:.1f} (Guvenilirlik: {pred['model_reliability']:.2f})", ln=True)
+            
+            pdf.ln(5)
+
+        # Add performance chart
         if plot_image_bytes:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
                 tmpfile.write(plot_image_bytes.getbuffer())
                 tmpfilepath = tmpfile.name
 
             try:
-                # Check if there's enough space for the image
-                if pdf.get_y() + 80 > pdf.h - 20:  # If not enough space, add new page
+                if pdf.get_y() + 80 > pdf.h - 20:
                     pdf.add_page()
                 
                 pdf.image(tmpfilepath, x=10, y=pdf.get_y(), w=pdf.w - 20, h=80)
             finally:
                 if os.path.exists(tmpfilepath):
-                    os.unlink(tmpfilepath)  # Always clean up temp file
+                    os.unlink(tmpfilepath)
 
-        # Handle different fpdf versions and ensure bytes format
+        # Recommendations
+        pdf.ln(85)
+        pdf.set_font_size(12)
+        pdf.cell(0, 8, "ONERILER:", ln=True)
+        pdf.set_font_size(10)
+        pdf.ln(3)
+        
+        # Generate personalized recommendations
+        if metrics.get('trend') == 'Düşüş':
+            pdf.cell(0, 6, "- Performansinizda dunus goruluyor. Ek calisma onerilir.", ln=True)
+        elif metrics.get('trend') == 'Yükseliş':
+            pdf.cell(0, 6, "- Harika! Performansiniz yukselis egiliminde.", ln=True)
+        
+        if metrics['average_grade'] < 70:
+            pdf.cell(0, 6, "- Daha duzenli calisma programi olusturun.", ln=True)
+            pdf.cell(0, 6, "- Ogretmeninizden ek yardim isteyin.", ln=True)
+        
+        if metrics.get('consistency_score', 50) < 70:
+            pdf.cell(0, 6, "- Performansinizi daha tutarli hale getirmeye odaklanin.", ln=True)
+
+        # Generate PDF bytes
         try:
-            # fpdf v1 - returns string
             pdf_output = pdf.output(dest='S')
             if isinstance(pdf_output, str):
                 pdf_bytes = pdf_output.encode('latin-1')
             else:
                 pdf_bytes = pdf_output
         except:
-            # fpdf2 - might return bytes or bytearray
             pdf_output = pdf.output()
         
-        # Ensure we always return bytes (not bytearray)
         if isinstance(pdf_output, bytearray):
             pdf_bytes = bytes(pdf_output)
         elif isinstance(pdf_output, str):
@@ -202,131 +480,72 @@ def create_pdf(student_name, student_df, plot_image_bytes):
             
         return pdf_bytes
     except Exception as e:
-        logger.error(f"PDF creation error: {e}")
+        logger.error(f"Enhanced PDF creation error: {e}")
         st.error(f"PDF oluşturma hatası: {e}")
         return None
 
-def send_email(from_email, password, to_email, subject, body, pdf_bytes, student_name):
-    """Send reports to all students"""
-    success_count = 0
-    error_count = 0
-    
-    students = df['name'].unique()
-    
-    for student_name in students:
-        try:
-            # Get student data
-            student_subjects = df[df['name'] == student_name]['subject'].unique()
-            
-            for subject in student_subjects:
-                student_df = df[(df['name'] == student_name) & (df['subject'] == subject)]
-                
-                if not student_df.empty:
-                    # Create chart
-                    fig, img_bytes = create_performance_chart(student_df, student_name, subject)
-                    
-                    if fig and img_bytes:
-                        # Create PDF
-                        pdf_bytes = create_pdf(student_name, student_df, img_bytes)
-                        plt.close(fig)
-                        
-                        if pdf_bytes:
-                            # Send email
-                            to_email = student_df.iloc[0]["email"]
-                            subject_line = f"{student_name} - {frequency.title()} Performans Raporu"
-                            body = f"""Merhaba {student_name},
-
-{frequency.title()} performans raporunuz ektedir.
-
-Özet Bilgiler ({subject}):
-- Ortalama Not: {student_df['grade'].mean():.1f}
-- En Yüksek Not: {student_df['grade'].max():.0f}
-- Toplam Hafta: {len(student_df)}
-
-Bu rapor otomatik olarak gönderilmiştir.
-
-İyi çalışmalar dileriz.
-"""
-                            
-                            result = send_email(from_email, password, to_email, subject_line, body, pdf_bytes, student_name)
-                            if result:
-                                success_count += 1
-                                log_entry = {
-                                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                                    'student': student_name,
-                                    'subject': subject,
-                                    'status': 'success',
-                                    'email': to_email
-                                }
-                            else:
-                                error_count += 1
-                                log_entry = {
-                                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                                    'student': student_name,
-                                    'subject': subject,
-                                    'status': 'error',
-                                    'email': to_email
-                                }
-                            
-                            st.session_state.email_logs.append(log_entry)
-                            
-                            # Small delay between emails
-                            time.sleep(1)
-                        
-        except Exception as e:
-            error_count += 1
-            logger.error(f"Error sending report for {student_name}: {e}")
-    
-    return success_count, error_count
-
-def check_and_send_scheduled_emails(df):
-    """Check if it's time to send scheduled emails"""
-    if not st.session_state.email_scheduler['active']:
-        return
-    
-    now = datetime.now()
-    next_send = st.session_state.email_scheduler.get('next_send')
-    
-    if next_send and now >= datetime.fromisoformat(next_send):
-        settings = st.session_state.email_scheduler['email_settings']
-        
-        if settings.get('from_email') and settings.get('password'):
-            with st.spinner("Otomatik raporlar gönderiliyor..."):
-                success, errors = send_bulk_reports(
-                    df, 
-                    settings['from_email'], 
-                    settings['password'],
-                    st.session_state.email_scheduler['frequency']
-                )
-                
-                st.success(f"✅ {success} rapor gönderildi, {errors} hata oluştu")
-                
-                # Update schedule
-                frequency = st.session_state.email_scheduler['frequency']
-                if frequency == 'daily':
-                    next_send = now + timedelta(days=1)
-                elif frequency == 'weekly':
-                    next_send = now + timedelta(weeks=1)
-                elif frequency == 'monthly':
-                    next_send = now + timedelta(days=30)
-                
-                st.session_state.email_scheduler['last_sent'] = now.isoformat()
-                st.session_state.email_scheduler['next_send'] = next_send.isoformat()
-                
-                st.rerun()
-
-def get_next_send_time(frequency):
-    """Calculate next send time based on frequency"""
-    now = datetime.now()
-    if frequency == 'daily':
-        return now + timedelta(days=1)
-    elif frequency == 'weekly':
-        return now + timedelta(weeks=1)
-    elif frequency == 'monthly':
-        return now + timedelta(days=30)
-    return now
-    """Send email with PDF attachment"""
+def send_enhanced_email(from_email, password, to_email, subject, student_name, metrics, predictions, pdf_bytes):
+    """Send enhanced email with detailed performance information"""
     try:
+        # Create enhanced email body
+        trend_emoji = "📈" if metrics.get('trend') == 'Yükseliş' else "📉" if metrics.get('trend') == 'Düşüş' else "📊"
+        
+        body = f"""Merhaba {student_name},
+
+{trend_emoji} HAFTALIK PERFORMANS RAPORU {trend_emoji}
+
+📊 PERFORMANS ÖZETİ:
+• Güncel Notunuz: {metrics['current_grade']:.1f}
+• Genel Ortalamanız: {metrics['average_grade']:.1f}
+• Performans Trendi: {metrics.get('trend', 'Belirsiz')}
+• Toplam Hafta Sayısı: {metrics['total_weeks']}
+
+"""
+
+        # Add performance change information
+        if 'performance_change' in metrics:
+            change = metrics['performance_change']
+            if change > 0:
+                body += f"🎉 Harika! Son haftalarda {change:.1f} puan iyileşme gösterdiniz.\n\n"
+            elif change < -2:
+                body += f"⚠️ Dikkat! Son haftalarda {abs(change):.1f} puan düşüş var. Daha fazla çalışma öneriyoruz.\n\n"
+            else:
+                body += f"📊 Performansınız stabil kalıyor.\n\n"
+
+        # Add predictions
+        if predictions:
+            body += "🔮 GELECEK HAFTA TAHMİNLERİ:\n"
+            for pred in predictions[:2]:
+                reliability = "Yüksek" if pred['model_reliability'] > 0.7 else "Orta" if pred['model_reliability'] > 0.4 else "Düşük"
+                body += f"• Hafta {pred['week']}: {pred['predicted_grade']:.1f} (Güvenilirlik: {reliability})\n"
+            body += "\n"
+
+        # Add recommendations
+        body += "💡 ÖNERİLER:\n"
+        if metrics.get('trend') == 'Düşüş':
+            body += "• Performansınızda düşüş gözlemleniyor. Ek çalışma yapmanızı öneriyoruz.\n"
+        elif metrics.get('trend') == 'Yükseliş':
+            body += "• Harika! Bu yükseliş trendini sürdürün.\n"
+        
+        if metrics['average_grade'] < 70:
+            body += "• Daha düzenli çalışma programı oluşturun.\n"
+            body += "• Öğretmeninizden ek yardım alın.\n"
+        elif metrics['average_grade'] >= 90:
+            body += "• Mükemmel performans! Bu seviyeyi koruyun.\n"
+
+        body += f"""
+📄 Detaylı rapor ekte bulunmaktadır.
+
+Bu rapor otomatik olarak her hafta Pazartesi 12:00'da gönderilmektedir.
+
+Başarılar dileriz! 🎓
+
+---
+Otomatik Öğrenci Takip Sistemi
+Tarih: {datetime.now().strftime('%d.%m.%Y %H:%M')}
+"""
+
+        # Send email
         msg = MIMEMultipart()
         msg["From"] = from_email
         msg["To"] = to_email
@@ -334,14 +553,15 @@ def get_next_send_time(frequency):
         msg.attach(MIMEText(body, "plain", "utf-8"))
 
         # PDF attachment
-        part = MIMEBase("application", "octet-stream")
-        part.set_payload(pdf_bytes)
-        encoders.encode_base64(part)
-        part.add_header(
-            "Content-Disposition",
-            f"attachment; filename={remove_accents(student_name)}_report.pdf"
-        )
-        msg.attach(part)
+        if pdf_bytes:
+            part = MIMEBase("application", "octet-stream")
+            part.set_payload(pdf_bytes)
+            encoders.encode_base64(part)
+            part.add_header(
+                "Content-Disposition",
+                f"attachment; filename={remove_accents(student_name)}_detay_rapor.pdf"
+            )
+            msg.attach(part)
 
         # Send email
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
@@ -350,307 +570,126 @@ def get_next_send_time(frequency):
             server.sendmail(from_email, to_email, msg.as_string())
         
         return True
-    except smtplib.SMTPAuthenticationError:
-        st.error("E-posta kimlik doğrulama hatası. App Password'u kontrol edin.")
-        return False
-    except smtplib.SMTPException as e:
-        st.error(f"SMTP hatası: {e}")
-        return False
     except Exception as e:
-        logger.error(f"Email sending error: {e}")
-        st.error(f"Mail gönderme hatası: {e}")
+        logger.error(f"Enhanced email sending error: {e}")
         return False
 
-def validate_csv_data(df):
-    """Validate CSV data structure and content"""
-    required_columns = ["name", "subject", "week", "grade", "email"]
-    df.columns = df.columns.str.strip().str.lower()
-    
-    missing_columns = [col for col in required_columns if col not in df.columns]
-    if missing_columns:
-        return False, f"Eksik sütunlar: {', '.join(missing_columns)}"
-    
-    # Check for empty data
-    if df.empty:
-        return False, "CSV dosyası boş"
-    
-    # Validate data types
+def send_teacher_summary_email(from_email, password, teacher_email, summary):
+    """Send comprehensive summary to teacher"""
     try:
-        df["week"] = pd.to_numeric(df["week"], errors="coerce")
-        df["grade"] = pd.to_numeric(df["grade"], errors="coerce")
-    except Exception as e:
-        return False, f"Veri tipi hatası: {e}"
-    
-    # Check for missing values in critical columns
-    if df["name"].isna().any() or df["subject"].isna().any():
-        return False, "Öğrenci adı veya ders adı eksik"
-    
-    if df["week"].isna().any() or df["grade"].isna().any():
-        return False, "Hafta veya not bilgisi eksik/geçersiz"
-    
-    return True, "OK"
+        subject = f"Haftalık Öğretmen Özet Raporu - {datetime.now().strftime('%d.%m.%Y')}"
+        
+        body = f"""Sayın Öğretmenim,
 
-# Streamlit UI
-st.set_page_config(page_title="Öğrenci Takip Sistemi", page_icon="📊", layout="wide")
-st.title("📊 Öğrenci Not ve Devam Takip Uygulaması")
+📊 HAFTALIK SINIF PERFORMANS ÖZETİ
 
-# Sidebar for instructions
-with st.sidebar:
-    st.markdown("### 📋 Kullanım Kılavuzu")
-    st.markdown("""
-    1. CSV dosyanızı yükleyin
-    2. Öğrenci ve ders seçin
-    3. Grafikleri inceleyin
-    4. PDF raporu indirin
-    5. İsterseniz e-posta gönderin
-    
-    **CSV Format:**
-    - name: Öğrenci adı
-    - subject: Ders adı  
-    - week: Hafta numarası
-    - grade: Not (0-100)
-    - email: E-posta adresi
-    """)
+📅 Rapor Tarihi: {summary['report_date']}
+👥 Toplam Öğrenci: {summary['total_students']}
+📚 Toplam Ders: {summary['total_subjects']}
+📍 Mevcut Hafta: {summary['current_week']}
 
-# File upload
-uploaded_file = st.file_uploader("CSV dosyasını yükleyin", type=["csv"])
-
-if uploaded_file is not None:
-    try:
-        df = pd.read_csv(uploaded_file)
-        
-        # Validate data
-        is_valid, error_msg = validate_csv_data(df)
-        if not is_valid:
-            st.error(error_msg)
-            st.stop()
-        
-        # Check for scheduled emails
-        if uploaded_file is not None:
-            check_and_send_scheduled_emails(df)
-        
-        # Student selection
-        student_names = sorted(df["name"].unique())
-        if len(student_names) == 0:
-            st.error("CSV dosyasında öğrenci bulunamadı.")
-            st.stop()
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            selected_name = st.selectbox("🎓 Öğrenci Seçin", student_names)
-        
-        # Subject selection
-        subjects = sorted(df[df["name"] == selected_name]["subject"].unique())
-        if len(subjects) == 0:
-            st.warning(f"{selected_name} için ders bulunamadı.")
-            st.stop()
-        
-        with col2:
-            selected_subject = st.selectbox("📚 Ders Seçin", subjects)
-        
-        # Filter data
-        student_df = df[(df["name"] == selected_name) & (df["subject"] == selected_subject)].copy()
-        student_df = student_df.sort_values("week")
-        
-        if student_df.empty:
-            st.warning("Seçilen öğrenci ve ders için veri bulunamadı.")
-            st.stop()
-        
-        # Display statistics
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("📈 Ortalama Not", f"{student_df['grade'].mean():.1f}")
-        with col2:
-            st.metric("⭐ En Yüksek Not", f"{student_df['grade'].max():.0f}")
-        with col3:
-            st.metric("📉 En Düşük Not", f"{student_df['grade'].min():.0f}")
-        with col4:
-            st.metric("📅 Toplam Hafta", len(student_df))
-        
-        # Performance chart
-        st.markdown(f"### 📈 {selected_name} - {selected_subject} Not Grafiği")
-        perf_fig, img_bytes = create_performance_chart(student_df, selected_name, selected_subject)
-        if perf_fig:
-            st.pyplot(perf_fig)
-            plt.close(perf_fig)
-        
-        # Attendance chart
-        st.markdown("### ✅ Devam Grafiği")
-        max_week = int(df["week"].max())
-        attend_fig = create_attendance_chart(student_df, selected_name, selected_subject, max_week)
-        if attend_fig:
-            st.pyplot(attend_fig)
-            plt.close(attend_fig)
-        
-        # Grade prediction
-        st.markdown("### 🔮 Gelecek Hafta Not Tahmini")
-        next_week, prediction = predict_next_grade(student_df)
-        if next_week and prediction:
-            st.success(f"📌 {next_week}. hafta için tahmini not: **{prediction:.1f}**")
-        else:
-            st.info("Tahmin için en az 2 hafta veri ve farklı notlar gerekli.")
-        
-        # PDF generation and email
-        if img_bytes:
-            if FPDF_AVAILABLE:
-                pdf_bytes = create_pdf(selected_name, student_df, img_bytes)
-                
-                if pdf_bytes:
-                    st.markdown("### 📄 Rapor İşlemleri")
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.download_button(
-                            label="📄 PDF Raporunu İndir",
-                            data=pdf_bytes,
-                            file_name=f"{remove_accents(selected_name)}_rapor.pdf",
-                            mime="application/pdf"
-                        )
-                    
-                    with col2:
-                        # Email form
-                        with st.expander("📩 Tek Sefer E-posta Gönder"):
-                            from_email = st.text_input("Gönderici E-posta", placeholder="ornek@gmail.com", key="single_email")
-                            password = st.text_input("App Password", type="password", key="single_password")
-                            
-                            if st.button("E-posta Gönder", type="primary"):
-                                if from_email and password:
-                                    to_email = student_df.iloc[0]["email"]
-                                    subject = f"{selected_name} - Haftalık Performans Raporu"
-                                    body = f"""Merhaba {selected_name},
-
-Haftalık performans raporunuz ektedir.
-
-Özet Bilgiler:
-- Ortalama Not: {student_df['grade'].mean():.1f}
-- En Yüksek Not: {student_df['grade'].max():.0f}
-- Toplam Hafta: {len(student_df)}
-
-İyi çalışmalar dileriz.
 """
-                                    
-                                    with st.spinner("E-posta gönderiliyor..."):
-                                        result = send_email(from_email, password, to_email, subject, body, pdf_bytes, selected_name)
-                                        if result:
-                                            st.success("✅ E-posta başarıyla gönderildi!")
-                                else:
-                                    st.warning("Lütfen e-posta ve App Password girin.")
-                
-                # NEW: Scheduled Email Section
-                st.markdown("### ⏰ Otomatik Rapor Gönderimi")
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.markdown("#### 📅 Zamanlama Ayarları")
-                    
-                    frequency = st.selectbox(
-                        "Gönderim Sıklığı",
-                        ["daily", "weekly", "monthly"],
-                        format_func=lambda x: {"daily": "Günlük", "weekly": "Haftalık", "monthly": "Aylık"}[x],
-                        index=1
-                    )
-                    
-                    # Email settings for scheduler
-                    scheduler_email = st.text_input("Gönderici E-posta (Zamanlayıcı)", placeholder="ornek@gmail.com", key="scheduler_email")
-                    scheduler_password = st.text_input("App Password (Zamanlayıcı)", type="password", key="scheduler_password")
-                    
-                    col_start, col_stop = st.columns(2)
-                    
-                    with col_start:
-                        if st.button("🚀 Otomatik Gönderimi Başlat", type="primary"):
-                            if scheduler_email and scheduler_password:
-                                st.session_state.email_scheduler['active'] = True
-                                st.session_state.email_scheduler['frequency'] = frequency
-                                st.session_state.email_scheduler['email_settings'] = {
-                                    'from_email': scheduler_email,
-                                    'password': scheduler_password
-                                }
-                                
-                                next_send = get_next_send_time(frequency)
-                                st.session_state.email_scheduler['next_send'] = next_send.isoformat()
-                                
-                                st.success(f"✅ Otomatik gönderim başlatıldı! Sonraki gönderim: {next_send.strftime('%Y-%m-%d %H:%M')}")
-                                st.rerun()
-                            else:
-                                st.warning("Lütfen e-posta bilgilerini girin.")
-                    
-                    with col_stop:
-                        if st.button("⏹️ Otomatik Gönderimi Durdur"):
-                            st.session_state.email_scheduler['active'] = False
-                            st.session_state.email_scheduler['next_send'] = None
-                            st.warning("Otomatik gönderim durduruldu.")
-                            st.rerun()
-                
-                with col2:
-                    st.markdown("#### 📊 Durum Bilgisi")
-                    
-                    if st.session_state.email_scheduler['active']:
-                        st.success("🟢 Otomatik gönderim aktif")
-                        
-                        frequency_text = {
-                            "daily": "Günlük", 
-                            "weekly": "Haftalık", 
-                            "monthly": "Aylık"
-                        }[st.session_state.email_scheduler['frequency']]
-                        
-                        st.info(f"📅 Sıklık: {frequency_text}")
-                        
-                        if st.session_state.email_scheduler.get('next_send'):
-                            next_send = datetime.fromisoformat(st.session_state.email_scheduler['next_send'])
-                            st.info(f"⏰ Sonraki gönderim: {next_send.strftime('%Y-%m-%d %H:%M')}")
-                        
-                        if st.session_state.email_scheduler.get('last_sent'):
-                            last_sent = datetime.fromisoformat(st.session_state.email_scheduler['last_sent'])
-                            st.info(f"✅ Son gönderim: {last_sent.strftime('%Y-%m-%d %H:%M')}")
-                        
-                        # Manual send button
-                        if st.button("📤 Şimdi Tüm Raporları Gönder"):
-                            settings = st.session_state.email_scheduler['email_settings']
-                            with st.spinner("Tüm raporlar gönderiliyor..."):
-                                success, errors = send_bulk_reports(
-                                    df, 
-                                    settings['from_email'], 
-                                    settings['password'],
-                                    "manuel"
-                                )
-                                st.success(f"✅ {success} rapor gönderildi, {errors} hata oluştu")
-                    else:
-                        st.warning("🔴 Otomatik gönderim kapalı")
-                
-                # Email logs
-                if st.session_state.email_logs:
-                    st.markdown("#### 📜 Gönderim Geçmişi")
-                    
-                    # Show last 10 logs
-                    recent_logs = st.session_state.email_logs[-10:]
-                    log_df = pd.DataFrame(recent_logs)
-                    
-                    if not log_df.empty:
-                        st.dataframe(
-                            log_df[['timestamp', 'student', 'subject', 'status', 'email']], 
-                            use_container_width=True
-                        )
-                        
-                        if st.button("🗑️ Geçmişi Temizle"):
-                            st.session_state.email_logs = []
-                            st.rerun()
-            else:
-                st.warning("📄 PDF özelliği kullanılamıyor. Lütfen fpdf2 kütüphanesini yükleyin: `pip install fpdf2`")
-    
-    except Exception as e:
-        logger.error(f"Application error: {e}")
-        st.error(f"Uygulama hatası: {e}")
-        st.info("Lütfen CSV dosyanızın doğru formatta olduğundan emin olun.")
 
-else:
-    st.info("👆 Başlamak için yukarıdan bir CSV dosyası yükleyin.")
-    st.markdown("### 📝 Örnek CSV Formatı")
-    sample_data = pd.DataFrame({
-        'name': ['Ali Veli', 'Ali Veli', 'Ayşe Kaya', 'Ayşe Kaya'],
-        'subject': ['Matematik', 'Matematik', 'Fizik', 'Fizik'],
-        'week': [1, 2, 1, 2],
-        'grade': [85, 90, 78, 82],
-        'email': ['ali@example.com', 'ali@example.com', 'ayse@example.com', 'ayse@example.com']
-    })
-    st.dataframe(sample_data)
+        # Subject-wise breakdown
+        for subject, metrics in summary['subjects'].items():
+            body += f"\n📖 {subject.upper()}:\n"
+            body += f"• Öğrenci Sayısı: {metrics['student_count']}\n"
+            body += f"• Genel Ortalama: {metrics['average_grade']:.1f}\n"
+            body += f"• Bu Hafta Ortalama: {metrics['current_week_avg']:.1f}\n"
+            body += f"• En Yüksek Not: {metrics['highest_grade']:.1f}\n"
+            body += f"• En Düşük Not: {metrics['lowest_grade']:.1f}\n"
+            
+            # Grade distribution
+            body += "\n📊 Not Dağılımı:\n"
+            for grade_range, count in metrics['grade_distribution'].items():
+                body += f"  {grade_range}: {count} öğrenci\n"
+            
+            # Students needing attention
+            if metrics['students_at_risk']:
+                body += "\n⚠️ Dikkat Gereken Öğrenciler:\n"
+                for student in metrics['students_at_risk'][:5]:  # Top 5
+                    body += f"  • {student['name']}: {student['recent_avg']:.1f} (Trend: {student['trend']:.1f})\n"
+            
+            # Top performers
+            if metrics['top_performers']:
+                body += "\n🌟 Başarılı Öğrenciler:\n"
+                for student in metrics['top_performers'][:5]:  # Top 5
+                    body += f"  • {student['name']}: {student['recent_avg']:.1f}\n"
+            
+            # Most improved
+            if metrics['most_improved']:
+                body += "\n📈 En Çok Gelişen Öğrenciler:\n"
+                for student in metrics['most_improved'][:3]:  # Top 3
+                    body += f"  • {student['name']}: +{student['improvement']:.1f} puan\n"
+            
+            body += "\n" + "="*50 + "\n"
+
+        body += f"""
+Bu rapor otomatik olarak her hafta Pazartesi gönderilmektedir.
+
+Detaylı analiz için sistemde oturum açabilirsiniz.
+
+İyi çalışmalar! 👨‍🏫
+
+---
+Otomatik Öğrenci Takip Sistemi
+"""
+
+        # Send email
+        msg = MIMEMultipart()
+        msg["From"] = from_email
+        msg["To"] = teacher_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "plain", "utf-8"))
+
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(from_email, password)
+            server.sendmail(from_email, teacher_email, msg.as_string())
+        
+        return True
+    except Exception as e:
+        logger.error(f"Teacher summary email error: {e}")
+        return False
+
+def schedule_monday_reports(df, email_settings):
+    """Schedule automatic Monday 12:00 AM reports"""
+    def send_weekly_reports():
+        try:
+            logger.info("Starting scheduled weekly report generation...")
+            
+            # Generate teacher summary
+            teacher_summary = generate_teacher_summary(df)
+            
+            # Send teacher summary first
+            if teacher_summary and email_settings.get('teacher_email'):
+                send_teacher_summary_email(
+                    email_settings['from_email'],
+                    email_settings['password'],
+                    email_settings['teacher_email'],
+                    teacher_summary
+                )
+                
+                # Log teacher email
+                st.session_state.teacher_reports.append({
+                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'type': 'teacher_summary',
+                    'status': 'success'
+                })
+            
+            # Send student reports
+            success_count = 0
+            error_count = 0
+            
+            students = df['name'].unique()
+            
+            for student_name in students:
+                try:
+                    student_subjects = df[df['name'] == student_name]['subject'].unique()
+                    
+                    for subject in student_subjects:
+                        student_df = df[(df['name'] == student_name) & (df['subject'] == subject)]
+                        
+                        if not student_df.empty:
+                            # Calculate metrics
+                            metrics = calculate_performance
