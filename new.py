@@ -198,7 +198,7 @@ def create_pdf(student_name, student_df, plot_image_bytes):
         return pdf_bytes
     except Exception as e:
         logger.error(f"PDF creation error: {e}")
-        st.error(f"PDF oluşturma hatası: {e}")
+        st.error(f"PDF creation error: {e}")
         return None
 
 def send_email(from_email, password, to_email, subject, body, pdf_bytes, student_name):
@@ -261,8 +261,8 @@ def send_bulk_reports(df, from_email, password, frequency_type):
                         
                         if pdf_bytes:
                             to_email = student_df.iloc[0]["email"]
-                            subject_line = f"{student_name} - {frequency_type.title()} Performans Raporu"
-                            body = f"""Merhaba {student_name},
+                            subject_line = f"{student_name} - {frequency_type.title()} Performance Report"
+                            body = f"""Hello {student_name},
 Your {frequency_type.title()} performance report is attached.
 
 Summary Information ({subject}):
@@ -358,7 +358,7 @@ def check_and_send_scheduled_emails(df):
         if settings.get('from_email') and settings.get('password'):
             with st.spinner("Automatic reports are being sent..."):
                 schedule_type = st.session_state.email_scheduler['schedule_type']
-                frequency_text = "Otomatik" if schedule_type == 'custom' else st.session_state.email_scheduler['frequency']
+                frequency_text = "otomatic" if schedule_type == 'custom' else st.session_state.email_scheduler['frequency']
                 
                 success, errors = send_bulk_reports(
                     df, 
@@ -480,13 +480,13 @@ if uploaded_file is not None:
         # Display statistics
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("📈 Ortalama Not", f"{student_df['grade'].mean():.1f}")
+            st.metric("📈 Average Grade", f"{student_df['grade'].mean():.1f}")
         with col2:
-            st.metric("⭐ En Yüksek Not", f"{student_df['grade'].max():.0f}")
+            st.metric("⭐ Highest Grade", f"{student_df['grade'].max():.0f}")
         with col3:
-            st.metric("📉 En Düşük Not", f"{student_df['grade'].min():.0f}")
+            st.metric("📉 Lowest Grade", f"{student_df['grade'].min():.0f}")
         with col4:
-            st.metric("📅 Toplam Hafta", len(student_df))
+            st.metric("📅 Total Weeks", len(student_df))
         
         # Performance chart
         st.markdown(f"### 📈 {selected_name} - {selected_subject} Grade Chart")
