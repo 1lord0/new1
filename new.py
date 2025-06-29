@@ -506,7 +506,8 @@ if uploaded_file is not None:
             st.success(f"📌 {next_week}. hafta için tahmini not: **{prediction:.1f}**")
         else:
             st.info("Tahmin için en az 2 hafta veri ve farklı notlar gerekli.")
-        
+        except Exception as e:
+            st.error(f"Hata oluştu: {e}")
         # PDF generation and email
         if img_bytes:
             if FPDF_AVAILABLE:
@@ -685,5 +686,4 @@ Haftalık performans raporunuz ektedir.
                             st.info(f"📊 Tip: {frequency_text}")
                         else:
                             st.info("📊 Tip: Özel Zamanlama")
-        except Exception as e:
-            st.error(f"Hata oluştu: {e}")
+
