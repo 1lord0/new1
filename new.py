@@ -617,8 +617,7 @@ Haftalık performans raporunuz ektedir.
                                 )
                                 st.success(f"✅ {success} rapor gönderildi, {errors} hata oluştu")
                     else:
-                        st.warning("🔴🔴 Automatic sending is disabled
-")
+                        st.warning("🔴 Automatic sending is disabled")
                 
                 # Email logs
                 if st.session_state.email_logs:
