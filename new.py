@@ -395,21 +395,22 @@ st.set_page_config(page_title="Öğrenci Takip Sistemi", page_icon="📊", layou
 st.title("📊 Öğrenci Not ve Devam Takip Uygulaması")
 
 # Sidebar for instructions
+# Sidebar for instructions
 with st.sidebar:
-    st.markdown("### 📋 Kullanım Kılavuzu")
+    st.markdown("### 📋 User Guide")
     st.markdown("""
-    1. CSV dosyanızı yükleyin
-    2. Öğrenci ve ders seçin
-    3. Grafikleri inceleyin
-    4. PDF raporu indirin
-    5. İsterseniz e-posta gönderin
-    
-    **CSV Format:**
-    - name: Öğrenci adı
-    - subject: Ders adı  
-    - week: Hafta numarası
-    - grade: Not (0-100)
-    - email: E-posta adresi
+    1. Upload your CSV file  
+    2. Select a student and subject  
+    3. Review the charts  
+    4. Download the PDF report  
+    5. Optionally, send via email  
+
+    **CSV Format:**  
+    - name: Student's name  
+    - subject: Subject name  
+    - week: Week number  
+    - grade: Grade (0-100)  
+    - email: Email address
     """)
 
 # File upload
