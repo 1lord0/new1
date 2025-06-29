@@ -63,6 +63,9 @@ def remove_accents(text):
         c for c in unicodedata.normalize('NFKD', text)
         if not unicodedata.combining(c)
     )
+    teacher_name = student_df["teacher"].iloc[0]
+st.markdown(f"#### 👨‍🏫 Teacher: **{teacher_name}**")
+
 
 def create_performance_chart(student_df, selected_name, selected_subject):
     """Create performance chart and return figure and image bytes"""
