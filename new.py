@@ -685,5 +685,5 @@ Haftalık performans raporunuz ektedir.
                             st.info(f"📊 Tip: {frequency_text}")
                         else:
                             st.info("📊 Tip: Özel Zamanlama")
-            except Exception as e:
-        st.error(f"Hata oluştu: {e}")
+        except Exception as e:
+            st.error(f"Hata oluştu: {e}")
