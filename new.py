@@ -504,9 +504,7 @@ if uploaded_file is not None:
                         st.download_button(
                             label="📄 PDF Raporunu İndir",
                             data=pdf_bytes,
-                            file_name=f"{remove_accents(selected_name)}_rapor.pdf",
-                            mime="application/pdf"
-                        )
+                            file_name=f"{remove_accents(selected_name)}_rapor.pdf",mime="application/pdf")
                     
                     with col2:
                         # Email form
