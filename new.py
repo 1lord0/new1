@@ -63,8 +63,7 @@ def remove_accents(text):
         c for c in unicodedata.normalize('NFKD', text)
         if not unicodedata.combining(c)
     )
-    teacher_name = student_df["teacher"].iloc[0]
-st.markdown(f"#### 👨‍🏫 Teacher: **{teacher_name}**")
+
 
 
 def create_performance_chart(student_df, selected_name, selected_subject):
@@ -203,7 +202,8 @@ def create_pdf(student_name, student_df, plot_image_bytes):
         logger.error(f"PDF creation error: {e}")
         st.error(f"PDF oluşturma hatası: {e}")
         return None
-
+    teacher_name = student_df["teacher"].iloc[0]
+st.markdown(f"#### 👨‍🏫 Teacher: **{teacher_name}**")
 def send_email(from_email, password, to_email, subject, body, pdf_bytes, student_name):
     """Send email with PDF attachment"""
     try:
