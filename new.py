@@ -482,6 +482,9 @@ if uploaded_file is not None:
             st.metric("📉 En Düşük Not", f"{student_df['grade'].min():.0f}")
         with col4:
             st.metric("📅 Toplam Hafta", len(student_df))
+    
+    except Exception as e:
+        st.error(f"Hata oluştu: {e}")
         
         # Performance chart
         st.markdown(f"### 📈 {selected_name} - {selected_subject} Not Grafiği")
