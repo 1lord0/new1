@@ -454,6 +454,7 @@ if uploaded_file is not None:
         col1, col2 = st.columns(2)
         with col1:
             selected_name = st.selectbox("🎓 Öğrenci Seçin", student_names)
+    
         
         # Subject selection
         subjects = sorted(df[df["name"] == selected_name]["subject"].unique())
@@ -684,3 +685,5 @@ Haftalık performans raporunuz ektedir.
                             st.info(f"📊 Tip: {frequency_text}")
                         else:
                             st.info("📊 Tip: Özel Zamanlama")
+            except Exception as e:
+        st.error(f"Hata oluştu: {e}")
