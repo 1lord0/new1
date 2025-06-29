@@ -69,8 +69,8 @@ def create_performance_chart(student_df, selected_name, selected_subject):
     try:
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.plot(student_df["week"], student_df["grade"], marker="o", linewidth=2, markersize=8)
-        ax.set_xlabel("Hafta", fontsize=12)
-        ax.set_ylabel("Not", fontsize=12)
+        ax.set_xlabel("Week", fontsize=12)
+        ax.set_ylabel("Grades", fontsize=12)
         ax.set_title(f"{selected_name} - {selected_subject} Notları", fontsize=14, fontweight='bold')
         ax.grid(True, alpha=0.3)
         ax.set_ylim(0, 100)
@@ -95,7 +95,7 @@ def create_attendance_chart(student_df, selected_name, selected_subject, max_wee
         colors = ['red' if x == 0 else 'green' for x in attendance_df["attendance"]]
         ax.bar(attendance_df["week"], attendance_df["attendance"], color=colors, alpha=0.7)
         ax.set_title(f"{selected_name} - {selected_subject} Devam Durumu", fontsize=14, fontweight='bold')
-        ax.set_xlabel("Hafta", fontsize=12)
+        ax.set_xlabel("Week", fontsize=12)
         ax.set_ylabel("Devam (1=Var, 0=Yok)", fontsize=12)
         ax.set_yticks([0, 1])
         ax.set_ylim(0, 1.2)
@@ -109,7 +109,7 @@ def create_attendance_chart(student_df, selected_name, selected_subject, max_wee
 def predict_next_grade(student_df):
     """Predict next week's grade using linear regression"""
     if not SKLEARN_AVAILABLE:
-        st.warning("Tahmin özelliği için scikit-learn kütüphanesi gerekli. 'pip install scikit-learn' ile yükleyebilirsiniz.")
+        st.warning("The prediction feature requires the scikit-learn library. You can install it using 'pip install scikit-learn'.")
         return None, None
         
     try:
@@ -151,16 +151,16 @@ def create_pdf(student_name, student_df, plot_image_bytes):
             student_name = remove_accents(student_name)
 
         # Title
-        pdf.cell(0, 15, f"{student_name} Haftalik Performans Raporu", ln=True, align="C")
+        pdf.cell(0, 15, f"{student_name} Weekly Performance Report", ln=True, align="C")
         pdf.ln(10)
 
         # Grades table
         pdf.set_font_size(12)
-        pdf.cell(0, 10, "NOTLAR:", ln=True)
+        pdf.cell(0, 10, "GRADES:", ln=True)
         pdf.ln(5)
         
         for _, row in student_df.iterrows():
-            pdf.cell(0, 8, f"Hafta {int(row['week'])}: {row['grade']}", ln=True)
+            pdf.cell(0, 8, f"Week {int(row['week'])}: {row['grade']}", ln=True)
 
         pdf.ln(10)
         
@@ -228,14 +228,14 @@ def send_email(from_email, password, to_email, subject, body, pdf_bytes, student
         
         return True
     except smtplib.SMTPAuthenticationError:
-        st.error("E-posta kimlik doğrulama hatası. App Password'u kontrol edin.")
+        st.error("Email authentication error. Please check your App Password.")
         return False
     except smtplib.SMTPException as e:
-        st.error(f"SMTP hatası: {e}")
+        st.error(f"SMTP error: {e}")
         return False
     except Exception as e:
         logger.error(f"Email sending error: {e}")
-        st.error(f"Mail gönderme hatası: {e}")
+        st.error(f"Mail sending error: {e}")
         return False
 
 def send_bulk_reports(df, from_email, password, frequency_type):
@@ -410,7 +410,7 @@ def validate_csv_data(df):
     return True, "OK"
 
 # Streamlit UI
-st.set_page_config(page_title="Öğrenci Takip Sistemi", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Student tracking system", page_icon="📊", layout="wide")
 st.title("📊 Student Grade and Attendance Tracking Application")
 
 # Sidebar for instructions
