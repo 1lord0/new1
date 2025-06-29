@@ -454,7 +454,6 @@ if uploaded_file is not None:
         col1, col2 = st.columns(2)
         with col1:
             selected_name = st.selectbox("🎓 Öğrenci Seçin", student_names)
-    
         
         # Subject selection
         subjects = sorted(df[df["name"] == selected_name]["subject"].unique())
@@ -506,8 +505,7 @@ if uploaded_file is not None:
             st.success(f"📌 {next_week}. hafta için tahmini not: **{prediction:.1f}**")
         else:
             st.info("Tahmin için en az 2 hafta veri ve farklı notlar gerekli.")
-        except Exception as e:
-            st.error(f"Hata oluştu: {e}")
+        
         # PDF generation and email
         if img_bytes:
             if FPDF_AVAILABLE:
@@ -564,6 +562,8 @@ Haftalık performans raporunuz ektedir.
                     scheduler_email = st.text_input("Gönderici E-posta", placeholder="ornek@gmail.com", key="scheduler_email")
                 with col2:
                     scheduler_password = st.text_input("App Password", type="password", key="scheduler_password")
+    except Exception as e:
+        st.error(f"Hata oluştu: {e}")
                 
                 # Schedule type selection
                 st.markdown("#### 📅 Zamanlama Türü")
@@ -686,4 +686,4 @@ Haftalık performans raporunuz ektedir.
                             st.info(f"📊 Tip: {frequency_text}")
                         else:
                             st.info("📊 Tip: Özel Zamanlama")
-
+                    
