@@ -545,7 +545,7 @@ Your weekly performance report is attached.
 
 Summary Information:
 
-* Average Grade: {student\_df\['grade'].mean():.1f}
+* f"* Average Grade: {student_df['grade'].mean():.1f}"
 * Highest Grade: {student\_df\['grade'].max():.0f}
 * Total Weeks: {len(student\_df)}
 
