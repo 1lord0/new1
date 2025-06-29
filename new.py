@@ -683,4 +683,8 @@ Haftalık performans raporunuz ektedir.
                             }[st.session_state.email_scheduler['frequency']]
                             st.info(f"📊 Tip: {frequency_text}")
                         else:
-                            st.info("📊 Tip: Özel Zamanlama")
+                            try:
+                                st.info("📊 Tip: Özel Zamanlama")
+                            except Exception as e:
+                                st.error(f"Hata oluştu: {e}")
+
