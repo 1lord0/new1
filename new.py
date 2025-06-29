@@ -596,7 +596,7 @@ We wish you good work.
                         st.markdown("##### 🎯 Custom Schedule")
                         
                         # Day and time selection
-                        day_names = \["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+                        day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
                         selected_day = st.selectbox("Select a day:", day_names)
 
