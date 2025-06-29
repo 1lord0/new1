@@ -635,18 +635,15 @@ Haftalık performans raporunuz ektedir.
                             st.session_state.email_logs = []
                             st.rerun()
             else:
-                st.warning("📄 PDF feature is not available. Please install the `fpdf2` library: `pip install fpdf2`
-")
+                st.warning("📄 PDF feature is not available. Please install the `fpdf2` library: `pip install fpdf2`")
     
     except Exception as e:
         logger.error(f"Application error: {e}")
         st.error(f"application error: {e}")
-        st.info("Please make sure your CSV file is in the correct format.
-")
+        st.info("Please make sure your CSV file is in the correct format.")
 
 else:
-    st.info("👆 To get started, upload a CSV file above.
-")
+    st.info("👆 To get started, upload a CSV file above.")
     st.markdown("### 📝 Sample CSV Format")
     sample_data = pd.DataFrame({
         'name': ['Ali Veli', 'Ali Veli', 'Ayşe Kaya', 'Ayşe Kaya'],
