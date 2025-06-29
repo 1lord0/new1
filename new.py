@@ -617,7 +617,8 @@ Haftalık performans raporunuz ektedir.
                                 )
                                 st.success(f"✅ {success} rapor gönderildi, {errors} hata oluştu")
                     else:
-                        st.warning("🔴 Otomatik gönderim kapalı")
+                        st.warning("🔴🔴 Automatic sending is disabled
+")
                 
                 # Email logs
                 if st.session_state.email_logs:
@@ -633,20 +634,23 @@ Haftalık performans raporunuz ektedir.
                             use_container_width=True
                         )
                         
-                        if st.button("🗑️ Geçmişi Temizle"):
+                        if st.button("🗑️ 🗑️ Clear History"):
                             st.session_state.email_logs = []
                             st.rerun()
             else:
-                st.warning("📄 PDF özelliği kullanılamıyor. Lütfen fpdf2 kütüphanesini yükleyin: `pip install fpdf2`")
+                st.warning("📄 PDF feature is not available. Please install the `fpdf2` library: `pip install fpdf2`
+")
     
     except Exception as e:
         logger.error(f"Application error: {e}")
-        st.error(f"Uygulama hatası: {e}")
-        st.info("Lütfen CSV dosyanızın doğru formatta olduğundan emin olun.")
+        st.error(f"application error: {e}")
+        st.info("Please make sure your CSV file is in the correct format.
+")
 
 else:
-    st.info("👆 Başlamak için yukarıdan bir CSV dosyası yükleyin.")
-    st.markdown("### 📝 Örnek CSV Formatı")
+    st.info("👆 To get started, upload a CSV file above.
+")
+    st.markdown("### 📝 Sample CSV Format")
     sample_data = pd.DataFrame({
         'name': ['Ali Veli', 'Ali Veli', 'Ayşe Kaya', 'Ayşe Kaya'],
         'subject': ['Matematik', 'Matematik', 'Fizik', 'Fizik'],
