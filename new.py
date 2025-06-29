@@ -71,7 +71,7 @@ def create_performance_chart(student_df, selected_name, selected_subject):
         ax.plot(student_df["week"], student_df["grade"], marker="o", linewidth=2, markersize=8)
         ax.set_xlabel("Week", fontsize=12)
         ax.set_ylabel("Grades", fontsize=12)
-        ax.set_title(f"{selected_name} - {selected_subject} Notları", fontsize=14, fontweight='bold')
+        ax.set_title(f"{selected_name} - {selected_subject} Grades", fontsize=14, fontweight='bold')
         ax.grid(True, alpha=0.3)
         ax.set_ylim(0, 100)
         
@@ -94,9 +94,9 @@ def create_attendance_chart(student_df, selected_name, selected_subject, max_wee
         fig, ax = plt.subplots(figsize=(10, 6))
         colors = ['red' if x == 0 else 'green' for x in attendance_df["attendance"]]
         ax.bar(attendance_df["week"], attendance_df["attendance"], color=colors, alpha=0.7)
-        ax.set_title(f"{selected_name} - {selected_subject} Devam Durumu", fontsize=14, fontweight='bold')
+        ax.set_title(f"{selected_name} - {selected_subject} Attendance Status", fontsize=14, fontweight='bold')
         ax.set_xlabel("Week", fontsize=12)
-        ax.set_ylabel("Devam (1=Var, 0=Yok)", fontsize=12)
+        ax.set_ylabel("Attendance (1=Var, 0=Yok)", fontsize=12)
         ax.set_yticks([0, 1])
         ax.set_ylim(0, 1.2)
         ax.grid(True, alpha=0.3)
