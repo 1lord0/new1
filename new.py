@@ -103,6 +103,7 @@ def create_attendance_chart(student_df, selected_name, selected_subject, max_wee
         ax.set_ylim(0, 1.2)
         ax.grid(True, alpha=0.3)
         
+        
         return fig
     except Exception as e:
         logger.error(f"Error creating attendance chart: {e}")
@@ -202,8 +203,7 @@ def create_pdf(student_name, student_df, plot_image_bytes):
         logger.error(f"PDF creation error: {e}")
         st.error(f"PDF oluşturma hatası: {e}")
         return None
-    teacher_name = student_df["teacher"].iloc[0]
-st.markdown(f"#### 👨‍🏫 Teacher: **{teacher_name}**")
+
 def send_email(from_email, password, to_email, subject, body, pdf_bytes, student_name):
     """Send email with PDF attachment"""
     try:
