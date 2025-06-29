@@ -64,8 +64,6 @@ def remove_accents(text):
         if not unicodedata.combining(c)
     )
 
-
-
 def create_performance_chart(student_df, selected_name, selected_subject):
     """Create performance chart and return figure and image bytes"""
     try:
@@ -102,7 +100,6 @@ def create_attendance_chart(student_df, selected_name, selected_subject, max_wee
         ax.set_yticks([0, 1])
         ax.set_ylim(0, 1.2)
         ax.grid(True, alpha=0.3)
-        
         
         return fig
     except Exception as e:
